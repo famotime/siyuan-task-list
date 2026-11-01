@@ -56,7 +56,13 @@ export interface TaskListGroup {
 /** 汇总视图分组树节点：笔记本 → 文档 → 标题树 → 列表块簇 */
 export interface TaskGroup {
   key: string
+  /** 分组种类：渲染层据此决定图标（doc）与 # 层级前缀（heading） */
+  kind: "notebook" | "doc" | "heading"
   title: string
+  /** doc 档：去掉叶名后的可读父路径（如 "/传送目录"，根文档为空串） */
+  parentPath?: string
+  /** doc 档：完整可读路径（tooltip / aria-label 用） */
+  hpath?: string
   /** 标题层级 1-6，非标题分组为 0 */
   level: number
   children: TaskGroup[]

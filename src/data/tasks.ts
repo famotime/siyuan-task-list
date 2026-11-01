@@ -160,13 +160,23 @@ function countOf(listGroups: TaskListGroup[], children: TaskGroup[]): { total: n
 
 function makeGroup(
   key: string,
+  kind: TaskGroup["kind"],
   title: string,
   level: number,
   listGroups: TaskListGroup[],
   children: TaskGroup[],
+  extra?: { parentPath?: string, hpath?: string },
 ): TaskGroup {
   const { total, done } = countOf(listGroups, children)
-  return { key, title, level, listGroups, children, total, done }
+  return { key, kind, title, level, listGroups, children, total, done, ...extra }
+}
+
+/** 分组组装选项：标题分组层的可见性 */
+export interface GroupingOptions {
+  /** 是否以标题作为分组层；false 时任务平铺在文档分组下 */
+  showHeadings: boolean
+  /** 作为分组层展示的标题层级（1-6 子集） */
+  headingLevels: number[]
 }
 
 /** 组装分组树：笔记本 → 文档 → 标题树 → 列表块簇（纯函数，可随筛选重算） */
@@ -174,10 +184,17 @@ export function buildTaskGroups(
   tasks: TaskItem[],
   notebookNames: Map<string, string>,
   untitledLabel: string,
+  opts: Partial<GroupingOptions> = {},
 ): TaskGroup[] {
   if (tasks.length === 0) {
     return []
   }
+  const showHeadings = opts.showHeadings ?? true
+  const levels = new Set(
+    opts.headingLevels && opts.headingLevels.length > 0
+      ? opts.headingLevels
+      : [1, 2, 3, 4, 5, 6],
+  )
 
   // 文档 -> 任务
   const byDoc = new Map<string, { box: string, hpath: string, tasks: TaskItem[] }>()
@@ -209,10 +226,21 @@ export function buildTaskGroups(
   const groups: TaskGroup[] = []
   for (const box of [...knownBoxes, ...unknownBoxes]) {
     const docs = byBox.get(box)!.sort((a, b) => a.hpath.localeCompare(b.hpath))
-    const docGroups = docs.map((doc) => buildDocGroup(doc.rootId, doc.hpath, doc.tasks, untitledLabel))
-    groups.push(makeGroup(`nb:${box}`, notebookNames.get(box) ?? box, 0, [], docGroups))
+    const docGroups = docs.map((doc) =>
+      buildDocGroup(doc.rootId, doc.hpath, doc.tasks, untitledLabel, showHeadings, levels),
+    )
+    groups.push(makeGroup(`nb:${box}`, "notebook", notebookNames.get(box) ?? box, 0, [], docGroups))
   }
   return groups
+}
+
+/** hpath（如 "/a/b/c"）拆为父路径与叶名；根文档父路径为空串 */
+function splitHpath(hpath: string): { parentPath: string, leaf: string } {
+  const segs = hpath.replace(/^\/+/, "").split("/").filter(Boolean)
+  return {
+    parentPath: segs.slice(0, -1).join(" / "),
+    leaf: segs[segs.length - 1] ?? "",
+  }
 }
 
 function buildDocGroup(
@@ -220,21 +248,37 @@ function buildDocGroup(
   hpath: string,
   tasks: TaskItem[],
   untitledLabel: string,
+  showHeadings: boolean,
+  levels: ReadonlySet<number>,
 ): TaskGroup {
-  // 该文档涉及的全部标题节点（来自任务祖先链，天然包含树父节点）
-  const nodes = new Map<string, HeadingNode>()
+  const { parentPath, leaf } = splitHpath(hpath)
+  const title = leaf || untitledLabel
+
+  if (!showHeadings) {
+    return makeGroup(`d:${rootId}`, "doc", title, 0, groupByList(tasks), [], { parentPath, hpath })
+  }
+
+  // 每个 headingId -> 从文档级到自身的祖先链（任务路径天然覆盖全部相关标题）
+  const chainById = new Map<string, HeadingNode[]>()
   for (const task of tasks) {
-    for (const heading of task.headingPath) {
-      if (!nodes.has(heading.id)) {
-        nodes.set(heading.id, heading)
+    const path = task.headingPath
+    for (let i = 0; i < path.length; i++) {
+      if (!chainById.has(path[i].id)) {
+        chainById.set(path[i].id, path.slice(0, i + 1))
       }
     }
   }
 
-  // 按最近父标题分派任务
+  // 任务改挂最近可见祖先标题（层级被隐藏时逐级上浮，直至文档层）
   const byHeading = new Map<string | null, TaskItem[]>()
   for (const task of tasks) {
-    const key = task.headingId
+    let key: string | null = null
+    for (let i = task.headingPath.length - 1; i >= 0; i--) {
+      if (levels.has(task.headingPath[i].level)) {
+        key = task.headingPath[i].id
+        break
+      }
+    }
     const arr = byHeading.get(key)
     if (arr) {
       arr.push(task)
@@ -243,16 +287,36 @@ function buildDocGroup(
     }
   }
 
-  // 标题树：parentId 不在集合内的视为根
+  // 可见标题节点 + 其最近可见父链接（中间层级被隐藏时跨级连接）
+  const nodes = new Map<string, HeadingNode>()
+  const visibleParent = new Map<string, string | null>()
+  for (const [id, chain] of chainById) {
+    const self = chain[chain.length - 1]
+    if (!levels.has(self.level) || nodes.has(id)) {
+      continue
+    }
+    nodes.set(id, self)
+    let parent: string | null = null
+    for (let i = chain.length - 2; i >= 0; i--) {
+      if (levels.has(chain[i].level)) {
+        parent = chain[i].id
+        break
+      }
+    }
+    visibleParent.set(id, parent)
+  }
+
+  // 可见标题树：可见父不在集合内视为根
   const childrenMap = new Map<string, HeadingNode[]>()
   const roots: HeadingNode[] = []
   for (const node of nodes.values()) {
-    if (node.parentId && nodes.has(node.parentId)) {
-      const arr = childrenMap.get(node.parentId)
+    const pid = visibleParent.get(node.id) ?? null
+    if (pid && nodes.has(pid)) {
+      const arr = childrenMap.get(pid)
       if (arr) {
         arr.push(node)
       } else {
-        childrenMap.set(node.parentId, [node])
+        childrenMap.set(pid, [node])
       }
     } else {
       roots.push(node)
@@ -268,6 +332,7 @@ function buildDocGroup(
   const buildHeadingGroup = (node: HeadingNode): TaskGroup =>
     makeGroup(
       `h:${node.id}`,
+      "heading",
       node.content || "…",
       node.level,
       groupByList(byHeading.get(node.id) ?? []),
@@ -276,5 +341,5 @@ function buildDocGroup(
 
   const docListGroups = groupByList(byHeading.get(null) ?? [])
   const headingChildren = roots.map(buildHeadingGroup)
-  return makeGroup(`d:${rootId}`, hpath, 0, docListGroups, headingChildren)
+  return makeGroup(`d:${rootId}`, "doc", title, 0, docListGroups, headingChildren, { parentPath, hpath })
 }

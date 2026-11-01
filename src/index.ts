@@ -7,10 +7,10 @@ import "@/index.scss"
 const CUSTOM_ICON_SVG = `<symbol id="iconTaskList" viewBox="0 0 1024 1024">
   <rect x="96" y="160" width="288" height="288" rx="48" fill="none" stroke="currentColor" stroke-width="72"/>
   <path fill="none" stroke="currentColor" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" d="M176 304l64 64 128-128"/>
-  <rect x="512" y="216" width="416" height="80" rx="16" fill="currentColor"/>
+  <rect x="512" y="216" width="416" height="80" rx="16" fill="none" stroke="currentColor" stroke-width="72"/>
   <rect x="96" y="576" width="288" height="288" rx="48" fill="none" stroke="currentColor" stroke-width="72"/>
   <path fill="none" stroke="currentColor" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" d="M176 720l64 64 128-128"/>
-  <rect x="512" y="632" width="416" height="80" rx="16" fill="currentColor"/>
+  <rect x="512" y="632" width="416" height="80" rx="16" fill="none" stroke="currentColor" stroke-width="72"/>
 </symbol>`
 
 const STORAGE_NAME = "config.json"
@@ -21,11 +21,20 @@ export interface TaskListConfig {
   limit: number
   /** 上次使用的汇总范围 */
   scope: ScopeSelection
+  /** 是否以标题作为分组层（false = 任务平铺到文档层） */
+  showHeadings: boolean
+  /** 作为分组层展示的标题层级（1-6 子集） */
+  headingLevels: number[]
+  /** 折叠的分组 key（notebook/doc/heading） */
+  foldedKeys: string[]
 }
 
 const DEFAULT_CONFIG: TaskListConfig = {
   limit: 2000,
   scope: { mode: "activeDoc", includeLinked: false },
+  showHeadings: true,
+  headingLevels: [1, 2, 3, 4, 5, 6],
+  foldedKeys: [],
 }
 
 export default class TaskListPlugin extends Plugin {
@@ -84,6 +93,19 @@ export default class TaskListPlugin extends Plugin {
     }
     if (saved && saved.scope && saved.scope.mode) {
       this.config.scope = { ...saved.scope }
+    }
+    if (saved && typeof saved.showHeadings === "boolean") {
+      this.config.showHeadings = saved.showHeadings
+    }
+    if (saved && Array.isArray(saved.headingLevels)) {
+      const levels = [...new Set<number>(saved.headingLevels)]
+        .filter((lvl) => Number.isInteger(lvl) && lvl >= 1 && lvl <= 6)
+      if (levels.length > 0) {
+        this.config.headingLevels = levels.sort((a, b) => a - b)
+      }
+    }
+    if (saved && Array.isArray(saved.foldedKeys)) {
+      this.config.foldedKeys = saved.foldedKeys.filter((key: any) => typeof key === "string")
     }
   }
 

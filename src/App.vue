@@ -3,11 +3,14 @@
     <ScopeBar
       v-model="scope"
       :notebooks="notebooks"
+      :resolved-doc-id="resolvedDocId"
       @refresh="refresh()"
     />
     <FilterBar
       v-model:status="statusFilter"
       v-model:keyword="keyword"
+      v-model:show-headings="showHeadings"
+      v-model:heading-levels="headingLevels"
     />
     <div class="tl-body">
       <div
@@ -33,6 +36,10 @@
           v-if="groups.length === 0"
           class="tl-placeholder"
         >
+          <TlIcon
+            path="M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01"
+            class="tl-empty__icon"
+          />
           <div class="tl-empty__title">
             {{ i18n.empty }}
           </div>
@@ -43,8 +50,10 @@
         <TaskTree
           v-else
           :groups="groups"
+          :folded="folded"
           @toggle="onToggle"
           @jump="onJump"
+          @toggle-fold="onToggleFold"
         />
       </template>
     </div>
@@ -58,6 +67,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import FilterBar from "@/components/task-panel/FilterBar.vue"
 import ScopeBar from "@/components/task-panel/ScopeBar.vue"
 import TaskTree from "@/components/task-panel/TaskTree.vue"
+import TlIcon from "@/components/_shared/TlIcon.vue"
 import { lsNotebooks, pushErrMsg, updateTaskListItemMarker } from "@/api"
 import { markerForStatus } from "@/data/status"
 import {
@@ -85,15 +95,24 @@ const collection = ref<TaskCollection | null>(null)
 const loading = ref(false)
 const errorMessage = ref("")
 const truncated = ref(false)
-/** 当前文档档解析出的文档 id（用于 switch-protyle 变更检测） */
+/** 当前文档档解析出的文档 id（用于 switch-protyle 变更检测与范围摘要回显） */
 const resolvedDocId = ref<string>("")
+
+// ---------- 视图状态（标题分组层级 + 折叠态，持久化到插件 config） ----------
+
+const showHeadings = ref(true)
+const headingLevels = ref<number[]>([1, 2, 3, 4, 5, 6])
+const folded = ref(new Set<string>())
 
 const groups = computed<TaskGroup[]>(() => {
   if (!collection.value) {
     return []
   }
   const visible = filterTasks(collection.value.tasks, statusFilter.value, keyword.value)
-  return buildTaskGroups(visible, collection.value.notebookNames, i18n.untitledGroup)
+  return buildTaskGroups(visible, collection.value.notebookNames, i18n.untitledGroup, {
+    showHeadings: showHeadings.value,
+    headingLevels: headingLevels.value,
+  })
 })
 
 const truncatedText = computed(() =>
@@ -227,9 +246,14 @@ function onSwitchProtyle(event: CustomEvent<any>) {
 onMounted(async () => {
   plugin.eventBus.on("ws-main", onWsMain)
   plugin.eventBus.on("switch-protyle", onSwitchProtyle)
-  // 面板挂载可能早于插件 onload 的配置加载完成，先等待再初始化范围
+  // 面板挂载可能早于插件 onload 的配置加载完成，先等待再初始化范围与视图状态
   await (plugin as any).readyPromise?.catch?.(() => {})
   scope.value = { ...plugin.config.scope }
+  showHeadings.value = plugin.config.showHeadings !== false
+  headingLevels.value = Array.isArray(plugin.config.headingLevels) && plugin.config.headingLevels.length > 0
+    ? [...plugin.config.headingLevels]
+    : [1, 2, 3, 4, 5, 6]
+  folded.value = new Set(Array.isArray(plugin.config.foldedKeys) ? plugin.config.foldedKeys : [])
   try {
     const result = await lsNotebooks()
     notebooks.value = (result?.notebooks ?? [])
@@ -247,9 +271,11 @@ onUnmounted(() => {
   clearTimeout(debounceTimer)
   clearTimeout(saveTimer)
   clearTimeout(confirmTimer)
+  clearTimeout(viewSaveTimer)
 })
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
+let viewSaveTimer: ReturnType<typeof setTimeout> | undefined
 
 // 用户改动范围时：防抖刷新 + 防抖持久化（refresh 路径绝不写盘）
 watch(scope, () => {
@@ -260,4 +286,26 @@ watch(scope, () => {
     plugin.saveConfig()
   }, 800)
 }, { deep: true })
+
+// 视图状态（标题层级开关 / 折叠态）改动：防抖持久化。三个 ref 均以整体替换
+// 方式更新（折叠态每次生成新 Set），plain watch 即可感知
+watch([showHeadings, headingLevels, folded], () => {
+  clearTimeout(viewSaveTimer)
+  viewSaveTimer = setTimeout(() => {
+    plugin.config.showHeadings = showHeadings.value
+    plugin.config.headingLevels = [...headingLevels.value]
+    plugin.config.foldedKeys = [...folded.value]
+    plugin.saveConfig()
+  }, 600)
+})
+
+function onToggleFold(key: string) {
+  const next = new Set(folded.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  folded.value = next
+}
 </script>
