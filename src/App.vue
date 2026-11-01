@@ -215,8 +215,10 @@ async function onToggle(task: TaskItem) {
 }
 
 function onJump(task: TaskItem) {
+  // app 必须传宿主 App 实例（plugin.app），传插件实例会导致 openFile 内部
+  // 模型/页签归属判断失配，跳转在 getBlockInfo 之后静默中断
   openTab({
-    app: plugin as any,
+    app: plugin.app,
     doc: {
       id: task.id,
       action: ["cb-get-focus", "cb-get-hl"],
