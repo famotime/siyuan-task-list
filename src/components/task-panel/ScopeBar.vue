@@ -161,6 +161,50 @@
           >
           <span>{{ i18n.includeLinked }}</span>
         </label>
+
+        <div
+          v-if="modelValue.mode === 'notebook' || modelValue.mode === 'all'"
+          class="tl-scope-pop__sec"
+        >
+          <div class="tl-scope-pop__label">
+            {{ i18n.excludePathsLabel }}
+          </div>
+          <div
+            v-for="p in excludeList"
+            :key="p"
+            class="tl-exclude-row"
+          >
+            <span
+              class="tl-exclude-row__text"
+              :title="p"
+            >{{ p }}</span>
+            <button
+              type="button"
+              class="tl-icon-btn tl-exclude-row__remove ariaLabel"
+              :aria-label="i18n.removeExclude"
+              @click="removeExclude(p)"
+            >
+              <TlIcon path="M18 6 6 18M6 6l12 12" />
+            </button>
+          </div>
+          <div class="tl-exclude-add">
+            <input
+              v-model="excludeInput"
+              class="b3-text-field tl-scope-pop__filter"
+              type="text"
+              :placeholder="i18n.excludePathPlaceholder"
+              @keydown.enter.prevent="addExclude"
+            >
+            <button
+              type="button"
+              class="tl-icon-btn ariaLabel"
+              :aria-label="i18n.addExclude"
+              @click="addExclude"
+            >
+              <TlIcon path="M12 5v14M5 12h14" />
+            </button>
+          </div>
+        </div>
       </div>
     </TlPopover>
   </div>
@@ -171,7 +215,7 @@ import { computed, nextTick, ref, watch } from "vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
 import TlPopover from "@/components/_shared/TlPopover.vue"
 import { sql } from "@/api"
-import { listDocsOfNotebook } from "@/data/scope"
+import { listDocsOfNotebook, normalizeExcludePaths } from "@/data/scope"
 import type {
   DocEntry,
   ScopeMode,
@@ -280,6 +324,8 @@ function onModeChange(mode: ScopeMode) {
     box: mode === "notebook" || mode === "path" ? props.modelValue.box ?? props.notebooks[0]?.id : undefined,
     includeSubdocs: mode === "path" ? props.modelValue.includeSubdocs ?? false : undefined,
     includeLinked: mode === "path" || mode === "activeDoc" ? props.modelValue.includeLinked ?? false : undefined,
+    // 排除路径跨模式保留，切回 notebook/all 时无需重填
+    excludePaths: props.modelValue.excludePaths,
   }
   if (mode === "path") {
     next.docId = props.modelValue.docId
@@ -287,6 +333,26 @@ function onModeChange(mode: ScopeMode) {
     next.hpath = props.modelValue.hpath
   }
   emit("update:modelValue", next)
+}
+
+// ---------- 排除路径（notebook / all 档） ----------
+
+const excludeInput = ref("")
+
+const excludeList = computed(() => props.modelValue.excludePaths ?? [])
+
+function addExclude() {
+  const normalized = normalizeExcludePaths([excludeInput.value])
+  if (normalized.length === 0) {
+    return
+  }
+  const merged = normalizeExcludePaths([...excludeList.value, ...normalized])
+  patch({ excludePaths: merged })
+  excludeInput.value = ""
+}
+
+function removeExclude(path: string) {
+  patch({ excludePaths: excludeList.value.filter((p) => p !== path) })
 }
 
 function onNotebookChange(event: Event) {
@@ -442,6 +508,7 @@ function pickDoc(doc: DocEntry) {
     hpath: doc.hpath,
     includeSubdocs: props.modelValue.includeSubdocs ?? false,
     includeLinked: props.modelValue.includeLinked ?? false,
+    excludePaths: props.modelValue.excludePaths,
   })
 }
 </script>

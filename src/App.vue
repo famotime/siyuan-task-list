@@ -217,13 +217,40 @@ async function onToggle(task: TaskItem) {
 function onJump(task: TaskItem) {
   // app 必须传宿主 App 实例（plugin.app），传插件实例会导致 openFile 内部
   // 模型/页签归属判断失配，跳转在 getBlockInfo 之后静默中断
+  // cb-get-context：渲染文档全文（否则聚焦模式只渲染目标块附近），
+  // cb-get-focus：滚动定位到目标块；高亮由下方 afterOpen 自绘闪烁动画承担
+  // （cb-get-hl 的常驻高亮不符合"闪烁后消失"的预期，故不使用）
   openTab({
     app: plugin.app,
     doc: {
       id: task.id,
-      action: ["cb-get-focus", "cb-get-hl"],
+      action: ["cb-get-focus", "cb-get-context"],
     },
+    afterOpen: (model: any) => flashBlock(model, task.id),
   })
+}
+
+/** 目标块渲染完成后加一次性闪烁框（约 1.8s 后自动移除） */
+function flashBlock(model: any, blockId: string) {
+  const protyle = model?.editor?.protyle
+  if (!protyle?.element) {
+    return
+  }
+  let tries = 0
+  const timer = window.setInterval(() => {
+    tries++
+    const el = protyle.element.querySelector(`[data-node-id="${blockId}"]`) as HTMLElement | null
+    if (el) {
+      window.clearInterval(timer)
+      el.classList.remove("tl-jump-flash")
+      // 强制回流以重启动画
+      void el.offsetWidth
+      el.classList.add("tl-jump-flash")
+      window.setTimeout(() => el.classList.remove("tl-jump-flash"), 1900)
+    } else if (tries > 30) {
+      window.clearInterval(timer)
+    }
+  }, 100)
 }
 
 const WS_REFRESH_CMDS = new Set(["savedoc", "transactions", "rename"])

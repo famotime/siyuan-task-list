@@ -89,6 +89,8 @@ export interface ScopeSelection {
   includeSubdocs?: boolean
   /** activeDoc / path 档：是否包含链接文档（块引用+嵌入块，一层） */
   includeLinked?: boolean
+  /** notebook / all 档：排除的文档路径前缀（hpath，如 "/日记"；文档自身与子树一并排除） */
+  excludePaths?: string[]
 }
 
 /** 文档选择器中的文档条目 */

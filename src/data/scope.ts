@@ -134,11 +134,47 @@ export async function buildTaskQuery(ctx: ScopeContext): Promise<string> {
   }
   // mode === "all"：无谓词
 
+  // 排除路径（notebook / all 档）：命中前缀的文档自身与子树一并排除
+  if (sel.mode === "notebook" || sel.mode === "all") {
+    const excluded = normalizeExcludePaths(sel.excludePaths ?? [])
+    if (excluded.length > 0) {
+      predicate += ` AND ${excludePathPredicate(excluded)}`
+    }
+  }
+
   return (
     `SELECT ${TASK_QUERY_COLUMNS} FROM blocks ` +
     `WHERE type='i' AND subtype='t' AND ${predicate} ` +
     `ORDER BY root_id, updated LIMIT ${limit}`
   )
+}
+
+/** 规范化排除路径：补前导 /、去尾部 /，丢弃空值与根路径，去重 */
+export function normalizeExcludePaths(paths: string[]): string[] {
+  const out: string[] = []
+  for (const raw of paths ?? []) {
+    let p = (raw ?? "").trim()
+    if (!p) {
+      continue
+    }
+    if (!p.startsWith("/")) {
+      p = `/${p}`
+    }
+    while (p.length > 1 && p.endsWith("/")) {
+      p = p.slice(0, -1)
+    }
+    if (p === "/" || out.includes(p)) {
+      continue
+    }
+    out.push(p)
+  }
+  return out
+}
+
+/** 排除路径谓词：文档自身或位于其子树（hpath 前缀匹配）即排除 */
+function excludePathPredicate(paths: string[]): string {
+  const conds = paths.map((p) => `(hpath = '${esc(p)}' OR hpath LIKE '${esc(p)}/%')`)
+  return `NOT (${conds.join(" OR ")})`
 }
 
 export interface TaskRow {

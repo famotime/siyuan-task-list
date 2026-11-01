@@ -282,6 +282,50 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+// ---------- 排除路径编辑 ----------
+.tl-exclude-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tl-exclude-row__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--b3-font-family-code, monospace);
+  font-size: 11px;
+  color: var(--b3-theme-on-surface);
+  background-color: var(--b3-theme-surface);
+  border: 1px solid var(--b3-border-color);
+  border-radius: var(--b3-border-radius);
+  padding: 1px 6px;
+}
+
+.tl-exclude-row__remove {
+  width: 20px;
+  height: 20px;
+
+  svg {
+    width: 11px;
+    height: 11px;
+  }
+}
+
+.tl-exclude-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .tl-scope-pop__filter {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
 .tl-scope-pop__check {
   display: inline-flex;
   align-items: center;
@@ -485,6 +529,26 @@
   }
 }
 
+// 横向刻度线：从竖向参考线引出到条目 caret 左缘（仅 depth ≥ 1 的子级条目），
+// 折叠态刻度改为主色实线，作为折叠标识
+.tl-tree--sub .tl-group__head {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: calc(10px + var(--tl-depth, 0) * 16px - 11px);
+    top: 50%;
+    width: 11px;
+    border-top: 1px dashed var(--b3-border-color);
+    pointer-events: none;
+  }
+
+  &--folded::before {
+    border-top: 1px solid var(--b3-theme-primary);
+  }
+}
+
 .tl-caret {
   width: 12px;
   height: 12px;
@@ -678,4 +742,26 @@
 .tl-jump__icon {
   width: 13px;
   height: 13px;
+}
+
+// ---------- 跳转定位闪烁 ----------
+// 加到 protyle 目标块元素上，颜色框渐隐后自动移除（App.vue flashBlock）
+@keyframes tl-jump-flash {
+  0% {
+    background-color: var(--b3-theme-primary-lightest);
+    box-shadow: inset 0 0 0 2px var(--b3-theme-primary);
+  }
+  60% {
+    background-color: var(--b3-theme-primary-lightest);
+    box-shadow: inset 0 0 0 2px var(--b3-theme-primary);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.tl-jump-flash {
+  animation: tl-jump-flash 1.8s ease-out;
+  border-radius: var(--b3-border-radius);
 }

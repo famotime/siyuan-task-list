@@ -1,6 +1,7 @@
 <template>
   <div
     class="tl-tree"
+    :class="{ 'tl-tree--sub': depth > 0 }"
     :style="{ '--tl-depth': String(depth) }"
   >
     <div
@@ -10,7 +11,10 @@
     >
       <div
         class="tl-group__head"
-        :class="{ 'ariaLabel': group.kind === 'doc' && group.hpath }"
+        :class="{
+          'ariaLabel': group.kind === 'doc' && group.hpath,
+          'tl-group__head--folded': folded.has(group.key),
+        }"
         :aria-label="group.kind === 'doc' ? group.hpath : undefined"
         @click="emit('toggleFold', group.key)"
       >
