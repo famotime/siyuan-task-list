@@ -37,6 +37,10 @@
             class="tl-group__parent"
           >{{ group.parentPath }} / </span><span>{{ group.title }}</span>
         </span>
+        <span
+          class="tl-pill"
+          :class="'tl-pill--' + group.kind"
+        >{{ pillText(group) }}</span>
         <span class="tl-group__count">{{ group.total - group.done }}/{{ group.total }}</span>
       </div>
       <div
@@ -74,6 +78,7 @@
 import type { TaskGroup, TaskItem } from "@/data/types"
 import TaskRow from "@/components/task-panel/TaskRow.vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
+import { usePlugin } from "@/main"
 
 const props = withDefaults(defineProps<{
   groups: TaskGroup[]
@@ -89,6 +94,8 @@ const emit = defineEmits<{
   toggleFold: [key: string]
 }>()
 
+const i18n = usePlugin().i18n
+
 function titleClass(group: TaskGroup): string {
   if (group.kind === "doc") {
     return "tl-title--doc"
@@ -97,5 +104,16 @@ function titleClass(group: TaskGroup): string {
     return "tl-title--h" + group.level
   }
   return "tl-title--notebook"
+}
+
+/** 类型胶囊文案：标题按层级显示（如“3级标题”） */
+function pillText(group: TaskGroup): string {
+  if (group.kind === "doc") {
+    return i18n.pillDoc || "Doc"
+  }
+  if (group.kind === "heading") {
+    return (i18n.headingPill || "${n}级标题").replace("${n}", String(group.level))
+  }
+  return i18n.pillNotebook || "Notebook"
 }
 </script>

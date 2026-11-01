@@ -452,18 +452,36 @@
 }
 
 // ---------- 分组树 ----------
-// --tl-depth 由 TaskTree 递归 prop 内联注入；组头按 depth 缩进
+// --tl-depth 由 TaskTree 递归 prop 内联注入。
+// 16px 网格不变式：子项最左（子组头 caret / 任务勾选框 / # 前缀）= 父项内容起始 x
+// （父头 = caret 12px + gap 4px，即 10 + depth*16 + 16），保证任何后代不越出父项左边界。
 .tl-group__head {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px 3px calc(10px + var(--tl-depth, 0) * 12px);
+  padding: 3px 10px 3px calc(10px + var(--tl-depth, 0) * 16px);
   cursor: pointer;
   user-select: none;
   min-width: 0;
 
   &:hover {
     background-color: var(--b3-list-hover);
+  }
+}
+
+// 虚线层级参考线：挂在组身左侧、父头 caret 中心（caret 12px 列的中点），
+// 覆盖该组全部直接子项（任务行 + 子树）
+.tl-group__body {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: calc(10px + var(--tl-depth, 0) * 16px + 5px);
+    top: 0;
+    bottom: 0;
+    border-left: 1px dashed var(--b3-border-color);
+    pointer-events: none;
   }
 }
 
@@ -531,18 +549,46 @@
   padding: 1px 6px;
 }
 
+// ---------- 类型胶囊 ----------
+// 底色全部由主题 token 派生（color-mix 半透明淡染），明暗主题自动适配：
+// 笔记本 = 主色蓝 / 文档 = 次色橙 / 标题 = 中性灰
+.tl-pill {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 14px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  user-select: none;
+  white-space: nowrap;
+
+  &--notebook {
+    background-color: var(--b3-theme-primary-lightest);
+    color: var(--b3-theme-primary);
+  }
+
+  &--doc {
+    background-color: color-mix(in srgb, var(--b3-theme-secondary) 16%, transparent);
+    color: var(--b3-theme-secondary);
+  }
+
+  &--heading {
+    background-color: color-mix(in srgb, var(--b3-theme-on-surface) 12%, transparent);
+    color: var(--b3-theme-on-surface);
+  }
+}
+
 // ---------- 列表块任务簇 ----------
 .tl-cluster {
   padding: 1px 0;
 }
 
 // ---------- 任务行 ----------
-// 行缩进与组头同一网格：所在树深度 + 1
+// 任务行：左缘 = 父项内容起始 x（所在树 depth + 1 格）
 .tl-row {
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  padding: 3px 10px 3px calc(10px + (var(--tl-depth, 0) + 1) * 12px);
+  padding: 3px 10px 3px calc(10px + (var(--tl-depth, 0) + 1) * 16px);
   cursor: pointer;
   line-height: 1.5;
 
