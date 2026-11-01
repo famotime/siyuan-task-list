@@ -1,0 +1,18 @@
+.idea
+# .vscode
+.DS_Store
+node_modules
+dev
+dist
+build
+tmp
+.env
+*.zip
+package.zip
+
+# 本机参考文档（AGENTS.md：不入库、不推送）
+developer_docs/
+
+# 会话工具产物
+.zcode/
+gui-test-screenshots/
