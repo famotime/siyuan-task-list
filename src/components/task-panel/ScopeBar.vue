@@ -88,15 +88,15 @@
         </div>
 
         <template v-if="modelValue.mode === 'path'">
-          <div
-            v-if="favorites && favorites.length > 0"
-            class="tl-scope-pop__sec tl-fav-sec"
-          >
+          <div class="tl-scope-pop__sec tl-fav-sec">
             <div class="tl-scope-pop__label tl-fav-label">
               <span>{{ i18n.favoritesTitle || "常用收藏" }}</span>
-              <span class="tl-fav-count">{{ favorites.length }}/10</span>
+              <span class="tl-fav-count">{{ favorites?.length || 0 }}/10</span>
             </div>
-            <div class="tl-fav-list">
+            <div
+              v-if="favorites && favorites.length > 0"
+              class="tl-fav-list"
+            >
               <div
                 v-for="fav in favorites"
                 :key="fav.id"
@@ -150,6 +150,12 @@
                   <TlIcon path="M18 6 6 18M6 6l12 12" />
                 </button>
               </div>
+            </div>
+            <div
+              v-else
+              class="tl-fav-empty"
+            >
+              {{ i18n.noFavoritesHint || "暂无收藏，选中文档后点击下方按钮可收藏" }}
             </div>
           </div>
 
@@ -212,21 +218,51 @@
               </div>
             </div>
           </div>
+
+          <label
+            class="tl-scope-pop__check"
+          >
+            <input
+              type="checkbox"
+              :checked="modelValue.includeSubdocs ?? false"
+              @change="patch({ includeSubdocs: ($event.target as HTMLInputElement).checked })"
+            >
+            <span>{{ i18n.includeSubdocs }}</span>
+          </label>
+
+          <label
+            class="tl-scope-pop__check"
+          >
+            <input
+              type="checkbox"
+              :checked="modelValue.includeLinked ?? false"
+              @change="patch({ includeLinked: ($event.target as HTMLInputElement).checked })"
+            >
+            <span>{{ i18n.includeLinked }}</span>
+          </label>
+
+          <div
+            v-if="modelValue.docId"
+            class="tl-fav-action"
+          >
+            <button
+              type="button"
+              class="b3-button tl-fav-action__btn"
+              :class="{ 'b3-button--outline': !isFavorited }"
+              @click="emit('toggle-favorite')"
+            >
+              <TlIcon
+                :path="STAR_PATH"
+                class="tl-fav-action__icon"
+                :class="{ 'tl-icon--filled': isFavorited }"
+              />
+              <span>{{ isFavorited ? (i18n.favActionFavorited || "已收藏当前条件（点击取消）") : (i18n.favorite || "收藏当前路径与筛选条件") }}</span>
+            </button>
+          </div>
         </template>
 
         <label
-          v-if="modelValue.mode === 'path'"
-          class="tl-scope-pop__check"
-        >
-          <input
-            type="checkbox"
-            :checked="modelValue.includeSubdocs ?? false"
-            @change="patch({ includeSubdocs: ($event.target as HTMLInputElement).checked })"
-          >
-          <span>{{ i18n.includeSubdocs }}</span>
-        </label>
-        <label
-          v-if="showLinked"
+          v-if="modelValue.mode === 'activeDoc' && showLinked"
           class="tl-scope-pop__check"
         >
           <input

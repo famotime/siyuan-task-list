@@ -54,5 +54,7 @@
   "favoriteRemoved": "Removed from favorites",
   "favoriteLimitReached": "Favorites limit of 10 reached; please remove an item first",
   "noHeadingsTag": "Flat",
-  "removeFavorite": "Remove favorite"
+  "removeFavorite": "Remove favorite",
+  "favActionFavorited": "Favorited (click to unfavorite)",
+  "noFavoritesHint": "No favorites yet. Pick a doc and click below to add."
 }

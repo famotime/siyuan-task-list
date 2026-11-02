@@ -32,6 +32,10 @@
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+
+  &.tl-icon--filled {
+    fill: currentColor !important;
+  }
 }
 
 .tl-icon {
@@ -96,14 +100,19 @@
 }
 
 .tl-scopebar__fav {
-  color: var(--b3-theme-on-surface-light);
+  border: 1px solid var(--b3-border-color);
+  background-color: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface);
 
   &:hover {
-    color: var(--b3-theme-on-surface);
+    background-color: var(--b3-list-hover);
+    color: var(--b3-theme-on-background);
   }
 
   &--active {
     color: var(--b3-theme-primary);
+    border-color: var(--b3-theme-primary);
+    background-color: var(--b3-theme-primary-lightest);
 
     svg {
       fill: currentColor !important;
@@ -399,6 +408,33 @@
   &:hover {
     color: var(--b3-theme-error, #e06c75);
     background-color: var(--b3-list-hover);
+  }
+}
+
+.tl-fav-empty {
+  padding: 8px 4px;
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  text-align: center;
+}
+
+.tl-fav-action {
+  margin-top: 4px;
+}
+
+.tl-fav-action__btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  height: 28px;
+  padding: 0 10px;
+
+  .tl-fav-action__icon {
+    width: 13px;
+    height: 13px;
   }
 }
 

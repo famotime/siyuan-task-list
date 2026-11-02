@@ -54,5 +54,7 @@
   "favoriteRemoved": "已取消收藏",
   "favoriteLimitReached": "收藏已达 10 个上限，请先删除不需要的项",
   "noHeadingsTag": "平铺",
-  "removeFavorite": "删除该收藏"
+  "removeFavorite": "删除该收藏",
+  "favActionFavorited": "已收藏当前条件（点击取消）",
+  "noFavoritesHint": "暂无收藏，选中文档后点击下方按钮可收藏"
 }
