@@ -102,9 +102,11 @@
                 :key="fav.id"
                 class="tl-fav-item"
                 :class="{ 'tl-fav-item--active': isItemActive(fav) }"
-                @click="pickFavorite(fav)"
               >
-                <div class="tl-fav-item__main">
+                <div
+                  class="tl-fav-item__main"
+                  @click="pickFavorite(fav)"
+                >
                   <div
                     class="tl-fav-item__title"
                     :title="fav.hpath"
@@ -145,7 +147,9 @@
                   type="button"
                   class="tl-icon-btn tl-fav-item__del ariaLabel"
                   :aria-label="i18n.removeFavorite || '删除该收藏'"
-                  @click.stop="emit('remove-favorite', fav.id)"
+                  @click.stop.prevent="emit('remove-favorite', fav.id)"
+                  @pointerdown.stop
+                  @mousedown.stop
                 >
                   <TlIcon path="M18 6 6 18M6 6l12 12" />
                 </button>

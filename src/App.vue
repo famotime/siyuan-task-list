@@ -306,9 +306,6 @@ onMounted(async () => {
   // 监听插件设置保存通知，即时响应排序等首选项变更
   ;(plugin as any).onConfigUpdated = (cfg: any) => {
     sortTodoFirst.value = Boolean(cfg.sortTodoFirst)
-    if (Array.isArray(cfg.favorites)) {
-      favorites.value = [...cfg.favorites]
-    }
   }
   // 面板挂载可能早于插件 onload 的配置加载完成，先等待再初始化范围与视图状态
   await (plugin as any).readyPromise?.catch?.(() => {})
@@ -341,12 +338,10 @@ onUnmounted(() => {
   clearTimeout(saveTimer)
   clearTimeout(confirmTimer)
   clearTimeout(viewSaveTimer)
-  clearTimeout(favSaveTimer)
 })
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let viewSaveTimer: ReturnType<typeof setTimeout> | undefined
-let favSaveTimer: ReturnType<typeof setTimeout> | undefined
 
 // 用户改动范围时：防抖刷新 + 防抖持久化（refresh 路径绝不写盘）
 watch(scope, () => {
@@ -369,15 +364,6 @@ watch([showHeadings, headingLevels, folded], () => {
     plugin.saveConfig()
   }, 600)
 })
-
-// 常用路径收藏变更：防抖持久化
-watch(favorites, () => {
-  clearTimeout(favSaveTimer)
-  favSaveTimer = setTimeout(() => {
-    plugin.config.favorites = [...favorites.value]
-    plugin.saveConfig()
-  }, 400)
-}, { deep: true })
 
 function onToggleFold(key: string) {
   const next = new Set(folded.value)
@@ -492,6 +478,8 @@ function onToggleFavorite() {
   if (matchIdx >= 0) {
     favorites.value.splice(matchIdx, 1)
     favorites.value = [...favorites.value]
+    plugin.config.favorites = [...favorites.value]
+    plugin.saveConfig()
     pushMsg(i18n.favoriteRemoved || "已取消收藏")
     return
   }
@@ -515,6 +503,8 @@ function onToggleFavorite() {
     createdAt: Date.now(),
   }
   favorites.value = [newFav, ...favorites.value]
+  plugin.config.favorites = [...favorites.value]
+  plugin.saveConfig()
   pushMsg(i18n.favoriteAdded || "已添加到常用收藏")
 }
 
@@ -536,6 +526,8 @@ function onApplyFavorite(fav: PathFavorite) {
 
 function onRemoveFavorite(favId: string) {
   favorites.value = favorites.value.filter((f) => f.id !== favId)
+  plugin.config.favorites = [...favorites.value]
+  plugin.saveConfig()
   pushMsg(i18n.favoriteRemoved || "已取消收藏")
 }
 </script>
