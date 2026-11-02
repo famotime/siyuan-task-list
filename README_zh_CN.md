@@ -4,7 +4,7 @@
 
 将分散在不同文档中的任务列表汇集为一个统一的 Dock 侧边面板，便于集中查看与管理。
 
-![preview](./preview.webp)
+![preview](https://raw.githubusercontent.com/famotime/siyuan-task-list/main/preview.webp)
 
 ## 功能
 

@@ -4,7 +4,7 @@
 
 Aggregate task lists scattered across your SiYuan documents into one unified dock panel.
 
-![preview](./preview.webp)
+![preview](https://raw.githubusercontent.com/famotime/siyuan-task-list/main/preview.webp)
 
 ## Features
 

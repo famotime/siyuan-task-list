@@ -2,17 +2,14 @@
   "name": "siyuan-task-list",
   "author": "Quincy Zou",
   "url": "https://github.com/famotime/siyuan-task-list",
-  "version": "0.1.0",
+  "version": "0.8.0",
   "minAppVersion": "3.8.5",
-  "disabledInPublish": false,
+  "disabledInPublish": true,
   "backends": [
     "windows",
     "linux",
     "darwin",
     "docker"
-  ],
-  "kernels": [
-    "all"
   ],
   "frontends": [
     "desktop",
@@ -24,8 +21,8 @@
     "zh_CN": "任务汇"
   },
   "description": {
-    "default": "Aggregate task lists scattered across documents into one unified panel: scope by doc / path / notebook, filter by status, group by document and heading tree, sort tasks of the same list by completion, check off and jump back to source.",
-    "zh_CN": "将分散在不同文档中的任务列表汇集为一个统一面板：按当前文档/指定路径/笔记本设定范围，按完成状态筛选，按文档与标题树归类，同一列表块内按完成状态排序显示，支持勾选写回与跳转源块。"
+    "default": "Aggregate scattered task lists into a unified dock panel with flexible scoping, status filtering, and writeback.",
+    "zh_CN": "将分散在各文档中的任务列表汇集到统一 Dock 面板，支持多维范围筛选、树状归类与勾选直接写回。"
   },
   "readme": {
     "default": "README.md",

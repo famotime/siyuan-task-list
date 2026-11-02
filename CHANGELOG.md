@@ -3,7 +3,7 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 版本日志规范。
 版本发布时，GitHub Actions 会根据推送的 Tag 自动切片提取对应二级标题下的正文作为 Release Notes。
 
-## [v0.1.0] - 2026-11-01
+## [v0.8.0] - 2026-11-02
 
 ### 新增
 - **任务清单汇总面板**：右侧 Dock 面板汇集分散在各文档中的列表勾选任务（含嵌套子项）；
