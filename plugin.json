@@ -21,7 +21,7 @@
   ],
   "displayName": {
     "default": "Task List",
-    "zh_CN": "任务清单汇总"
+    "zh_CN": "任务汇"
   },
   "description": {
     "default": "Aggregate task lists scattered across documents into one unified panel: scope by doc / path / notebook, filter by status, group by document and heading tree, sort tasks of the same list by completion, check off and jump back to source.",

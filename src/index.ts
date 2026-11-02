@@ -128,7 +128,7 @@ export default class TaskListPlugin extends Plugin {
 
   openSetting() {
     this.initSetting()
-    this.settingDialog!.open(this.name)
+    this.settingDialog!.open(this.displayName || this.name)
   }
 
   public async saveConfig() {
