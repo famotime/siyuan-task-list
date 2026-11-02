@@ -4,7 +4,7 @@
  */
 import { lsNotebooks } from "@/api"
 import { resolveHeadingPaths } from "@/data/heading"
-import { resolveListChildOrder } from "@/data/order"
+import { resolveDocBlockOrders } from "@/data/order"
 import { buildTaskQuery, queryTaskRows } from "@/data/scope"
 import { isTaskDone, parseTaskLine } from "@/data/status"
 import type {
@@ -43,6 +43,7 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
   const stmt = await buildTaskQuery({ selection: sel, limit, notebooks: rawNotebooks })
   const { rows, truncated } = await queryTaskRows(stmt)
 
+  const docIds = [...new Set(rows.map((row) => row.root_id))]
   // 同一列表块的任务必属同一文档
   const parentRootIds = new Map<string, string>()
   for (const row of rows) {
@@ -53,14 +54,16 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
 
   const [headingRes, orderRes] = await Promise.all([
     resolveHeadingPaths(parentRootIds),
-    resolveListChildOrder([...parentRootIds.keys()]),
+    resolveDocBlockOrders(docIds, [...parentRootIds.keys()]),
   ])
 
   const tasks: TaskItem[] = rows.map((row) => {
     const parsed = parseTaskLine(row.markdown)
     const marker = parsed?.marker ?? " "
     const resolved = headingRes.pathByParentId.get(row.parent_id)
-    const childOrder = orderRes.get(row.parent_id)?.get(row.id)
+    const childOrder = orderRes.get(row.root_id)?.get(row.id)
+      ?? orderRes.get(row.parent_id)?.get(row.id)
+    const parentTaskId = headingRes.parentBlockIdByListId.get(row.parent_id) ?? null
     return {
       id: row.id,
       // 展示/搜索用任务自身文本：含嵌套子项的父任务 blocks.content 会拼接子项文本
@@ -72,6 +75,7 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
       rootId: row.root_id,
       hpath: row.hpath,
       parentId: row.parent_id,
+      parentTaskId,
       updated: row.updated,
       headingPath: resolved?.path ?? [],
       headingId: resolved?.nearestId ?? null,
@@ -112,47 +116,75 @@ export function filterTasks(
   return filterTasksByStatus(filterTasksByKeyword(tasks, keyword), status)
 }
 
-/** 列表块簇内显示顺序：未完成在前（可选），同状态按源顺序，再按块 id 兜底 */
-function sortListTasks(tasks: TaskItem[], sortTodoFirst = false): TaskItem[] {
-  return tasks.slice().sort((a, b) => {
-    if (sortTodoFirst) {
-      const doneDiff = Number(a.done) - Number(b.done)
-      if (doneDiff !== 0) {
-        return doneDiff
+interface TaskTreeNode {
+  task: TaskItem
+  children: TaskTreeNode[]
+}
+
+/**
+ * 组装局部任务树并按规则排序：
+ * 1. 识别直接父子关系：若任务的 parentTaskId 也在当前任务集中，则挂为子任务；
+ * 2. 同一层级内重排序：开启 sortTodoFirst 时，同级内未完成优先，同状态保持文档源顺序；
+ * 3. 深度优先遍历拍平，并赋予任务相对当前层级的子深度 subDepth（0 为顶级，1 为子级...）。
+ */
+function buildAndSortTaskTree(taskList: TaskItem[], sortTodoFirst = false): TaskItem[] {
+  if (taskList.length === 0) {
+    return []
+  }
+
+  const taskMap = new Map<string, TaskTreeNode>()
+  for (const t of taskList) {
+    taskMap.set(t.id, { task: t, children: [] })
+  }
+
+  const roots: TaskTreeNode[] = []
+  for (const node of taskMap.values()) {
+    const pid = node.task.parentTaskId
+    if (pid && taskMap.has(pid)) {
+      taskMap.get(pid)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+
+  const sortNodes = (nodes: TaskTreeNode[]) => {
+    nodes.sort((a, b) => {
+      if (sortTodoFirst) {
+        const doneDiff = Number(a.task.done) - Number(b.task.done)
+        if (doneDiff !== 0) {
+          return doneDiff
+        }
+      }
+      return a.task.srcOrder - b.task.srcOrder || a.task.id.localeCompare(b.task.id)
+    })
+    for (const node of nodes) {
+      if (node.children.length > 0) {
+        sortNodes(node.children)
       }
     }
-    return a.srcOrder - b.srcOrder || a.id.localeCompare(b.id)
-  })
+  }
+
+  sortNodes(roots)
+
+  const flatten = (nodes: TaskTreeNode[], depth = 0, out: TaskItem[] = []): TaskItem[] => {
+    for (const node of nodes) {
+      out.push({ ...node.task, subDepth: depth })
+      if (node.children.length > 0) {
+        flatten(node.children, depth + 1, out)
+      }
+    }
+    return out
+  }
+
+  return flatten(roots)
 }
 
 function groupByList(tasks: TaskItem[], sortTodoFirst = false): TaskListGroup[] {
-  const byList = new Map<string, TaskItem[]>()
-  for (const task of tasks) {
-    const arr = byList.get(task.parentId)
-    if (arr) {
-      arr.push(task)
-    } else {
-      byList.set(task.parentId, [task])
-    }
+  if (tasks.length === 0) {
+    return []
   }
-  const groups: TaskListGroup[] = []
-  for (const [key, listTasks] of byList) {
-    const sorted = sortListTasks(listTasks, sortTodoFirst)
-    groups.push({ key, tasks: sorted })
-  }
-  // 多个列表块之间按簇内最小源顺序稳定排列
-  groups.sort((a, b) => minSrcOrder(a) - minSrcOrder(b))
-  return groups
-}
-
-function minSrcOrder(group: TaskListGroup): number {
-  let min = Number.MAX_SAFE_INTEGER
-  for (const task of group.tasks) {
-    if (task.srcOrder < min) {
-      min = task.srcOrder
-    }
-  }
-  return min
+  const sorted = buildAndSortTaskTree(tasks, sortTodoFirst)
+  return [{ key: "tasks", tasks: sorted }]
 }
 
 function makeGroup(

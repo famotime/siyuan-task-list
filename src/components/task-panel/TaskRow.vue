@@ -2,6 +2,7 @@
   <div
     class="tl-row"
     :class="{ 'tl-row--done': task.done }"
+    :style="rowStyle"
     @click="emit('jump', task)"
   >
     <button
@@ -104,5 +105,15 @@ const displayMarker = computed(() => {
   }
   const marker = (props.task.marker ?? "").trim()
   return marker && marker.toLowerCase() !== "x" ? marker : ""
+})
+
+const rowStyle = computed(() => {
+  const subDepth = props.task.subDepth ?? 0
+  if (subDepth <= 0) {
+    return undefined
+  }
+  return {
+    "--tl-sub-depth": subDepth,
+  }
 })
 </script>

@@ -98,6 +98,8 @@ export interface HeadingResolution {
   docHeadings: Map<string, Map<string, HeadingNode>>
   /** 任务父块 id -> { path: 文档级→最近父标题, nearestId } */
   pathByParentId: Map<string, { path: HeadingNode[], nearestId: string | null }>
+  /** 任务所属列表块 id -> 其父块 id（嵌套子列表时该父块为父任务项 id） */
+  parentBlockIdByListId: Map<string, string>
 }
 
 /**
@@ -192,5 +194,13 @@ export async function resolveHeadingPaths(
     }
   }
 
-  return { docHeadings, pathByParentId }
+  const parentBlockIdByListId = new Map<string, string>()
+  for (const parentId of parentIds) {
+    const row = memo.get(parentId)
+    if (row?.parent_id) {
+      parentBlockIdByListId.set(parentId, row.parent_id)
+    }
+  }
+
+  return { docHeadings, pathByParentId, parentBlockIdByListId }
 }

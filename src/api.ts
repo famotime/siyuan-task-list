@@ -58,6 +58,15 @@ export async function getBlockKramdowns(
   return request(url, { ids })
 }
 
+/**
+ * 获取文档内所有块的先序遍历绝对文档序。
+ * 返回该文档中所有块 ID 的数组；若非文档或获取失败返回 null。
+ */
+export async function getDocBlocksOrders(id: BlockId): Promise<BlockId[] | null> {
+  const url = "/api/block/getDocBlocksOrders"
+  return request(url, { id })
+}
+
 // **************************************** Outline ****************************************
 
 export async function getDocOutline(id: DocumentId): Promise<any> {

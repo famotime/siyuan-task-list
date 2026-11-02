@@ -66,7 +66,7 @@
           <button
             v-if="canExcludeDoc(group)"
             type="button"
-            class="tl-group__action-btn ariaLabel"
+            class="tl-group__action-btn tl-group__action-btn--exclude ariaLabel"
             :aria-label="i18n.excludeDocBtn"
             @click.stop="emit('excludeDoc', group)"
           >

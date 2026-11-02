@@ -35,13 +35,17 @@ export interface TaskItem {
   hpath: string
   /** 直接父块（列表块）id */
   parentId: string
+  /** 直接父任务项 id（若当前任务为嵌套子任务）；顶级任务项为 null */
+  parentTaskId?: string | null
   updated: string
   /** 从文档级到最近父标题的标题路径（不含文档自身） */
   headingPath: HeadingNode[]
   /** 最近父标题 id；无标题祖先时为 null（归入文档"无标题"分组） */
   headingId: string | null
-  /** 在父列表块内的源顺序；获取失败时为 Number.MAX_SAFE_INTEGER（按 id 兜底） */
+  /** 在文档内的全局源顺序；获取失败时为 Number.MAX_SAFE_INTEGER（按 id 兜底） */
   srcOrder: number
+  /** 任务相对当前分组的层级深度：0 为顶级任务，1 为一级子任务，以此类推 */
+  subDepth?: number
   /** 运行时字段：本会话中被勾选前的自定义标记，取消勾选时还原，避免丢失 */
   prevMarker?: string
 }

@@ -865,6 +865,19 @@
   }
 }
 
+.tl-group__action-btn--exclude {
+  color: var(--b3-theme-error, #e06c75);
+
+  &:hover {
+    color: var(--b3-theme-error, #e06c75);
+    background-color: var(--b3-theme-error-lighter, rgba(224, 108, 117, 0.12));
+  }
+
+  &:active {
+    background-color: rgba(224, 108, 117, 0.2);
+  }
+}
+
 .tl-group__action-icon,
 .tl-group__exclude__icon {
   width: 12px;
@@ -908,12 +921,12 @@
 }
 
 // ---------- 任务行 ----------
-// 任务行：左缘 = 父项内容起始 x（所在树 depth + 1 格）
+// 任务行：左缘 = 父项内容起始 x（所在树 depth + 1 格）+ 子任务层级缩进
 .tl-row {
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  padding: 3px 10px 3px calc(10px + (var(--tl-depth, 0) + 1) * 16px);
+  padding: 3px 10px 3px calc(10px + (var(--tl-depth, 0) + 1 + var(--tl-sub-depth, 0)) * 16px);
   cursor: pointer;
   line-height: 1.5;
 
