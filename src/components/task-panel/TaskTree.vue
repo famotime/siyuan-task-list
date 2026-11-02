@@ -43,7 +43,10 @@
           class="tl-pill"
           :class="'tl-pill--' + group.kind"
         >{{ pillText(group) }}</span>
-        <span class="tl-group__count">{{ group.total - group.done }}/{{ group.total }}</span>
+        <span
+          class="tl-group__count ariaLabel"
+          :aria-label="countTooltip(group)"
+        >{{ group.total - group.done }}/{{ group.total }}</span>
         <div
           v-if="hasActions(group)"
           class="tl-group__actions"
@@ -137,6 +140,14 @@ const emit = defineEmits<{
 }>()
 
 const i18n = usePlugin().i18n
+
+function countTooltip(group: TaskGroup): string {
+  const todo = group.total - group.done
+  const total = group.total
+  return (i18n.groupCountTooltip || "未完成 ${todo} / 全部 ${total}")
+    .replace("${todo}", String(todo))
+    .replace("${total}", String(total))
+}
 
 const ICON_CHEVRONS_DOWN = "m7 6 5 5 5-5 M7 13l5 5 5-5"
 const ICON_CHEVRONS_UP = "m17 11-5-5-5 5 M17 18l-5-5-5 5"

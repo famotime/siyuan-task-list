@@ -56,5 +56,6 @@
   "noHeadingsTag": "Flat",
   "removeFavorite": "Remove favorite",
   "favActionFavorited": "Favorited (click to unfavorite)",
-  "noFavoritesHint": "No favorites yet. Pick a doc and click below to add."
+  "noFavoritesHint": "No favorites yet. Pick a doc and click below to add.",
+  "groupCountTooltip": "${todo} uncompleted / ${total} total"
 }

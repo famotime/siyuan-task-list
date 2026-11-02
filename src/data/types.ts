@@ -69,7 +69,7 @@ export interface TaskGroup {
   level: number
   children: TaskGroup[]
   listGroups: TaskListGroup[]
-  /** 该分组下可见任务的统计 */
+  /** 该分组下全部任务的统计（未完成 = total - done，全部 = total；基于当前搜索关键字过滤集） */
   total: number
   done: number
 }

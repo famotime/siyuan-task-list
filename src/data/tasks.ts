@@ -86,25 +86,30 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
   }
 }
 
+/** 搜索过滤：仅按内容关键字过滤 */
+export function filterTasksByKeyword(tasks: TaskItem[], keyword: string): TaskItem[] {
+  const kw = keyword.trim().toLowerCase()
+  if (!kw) {
+    return tasks
+  }
+  return tasks.filter((task) => task.content.toLowerCase().includes(kw))
+}
+
+/** 状态过滤：仅按完成状态过滤 */
+export function filterTasksByStatus(tasks: TaskItem[], status: StatusFilter): TaskItem[] {
+  if (status === "all") {
+    return tasks
+  }
+  return tasks.filter((task) => (status === "todo" ? !task.done : task.done))
+}
+
 /** 前端筛选：完成状态三态 + 内容关键字 */
 export function filterTasks(
   tasks: TaskItem[],
   status: StatusFilter,
   keyword: string,
 ): TaskItem[] {
-  const kw = keyword.trim().toLowerCase()
-  return tasks.filter((task) => {
-    if (status === "todo" && task.done) {
-      return false
-    }
-    if (status === "done" && !task.done) {
-      return false
-    }
-    if (kw && !task.content.toLowerCase().includes(kw)) {
-      return false
-    }
-    return true
-  })
+  return filterTasksByStatus(filterTasksByKeyword(tasks, keyword), status)
 }
 
 /** 列表块簇内显示顺序：未完成在前（可选），同状态按源顺序，再按块 id 兜底 */
@@ -150,20 +155,6 @@ function minSrcOrder(group: TaskListGroup): number {
   return min
 }
 
-function countOf(listGroups: TaskListGroup[], children: TaskGroup[]): { total: number, done: number } {
-  let total = 0
-  let done = 0
-  for (const group of listGroups) {
-    total += group.tasks.length
-    done += group.tasks.filter((task) => task.done).length
-  }
-  for (const child of children) {
-    total += child.total
-    done += child.done
-  }
-  return { total, done }
-}
-
 function makeGroup(
   key: string,
   kind: TaskGroup["kind"],
@@ -171,9 +162,10 @@ function makeGroup(
   level: number,
   listGroups: TaskListGroup[],
   children: TaskGroup[],
+  total: number,
+  done: number,
   extra?: { parentPath?: string, hpath?: string, box?: string },
 ): TaskGroup {
-  const { total, done } = countOf(listGroups, children)
   return { key, kind, title, level, listGroups, children, total, done, ...extra }
 }
 
@@ -185,6 +177,8 @@ export interface GroupingOptions {
   headingLevels: number[]
   /** 是否将未完成任务排在已完成任务前面（同列表块内） */
   sortTodoFirst?: boolean
+  /** 任务完成状态过滤（仅影响列表中展示的任务行与空分组剪枝，不影响 total/done 统计） */
+  statusFilter?: StatusFilter
 }
 
 /** 组装分组树：笔记本 → 文档 → 标题树 → 列表块簇（纯函数，可随筛选重算） */
@@ -199,6 +193,7 @@ export function buildTaskGroups(
   }
   const showHeadings = opts.showHeadings ?? true
   const sortTodoFirst = opts.sortTodoFirst ?? false
+  const statusFilter = opts.statusFilter ?? "all"
   const levels = new Set(
     opts.headingLevels && opts.headingLevels.length > 0
       ? opts.headingLevels
@@ -235,10 +230,43 @@ export function buildTaskGroups(
   const groups: TaskGroup[] = []
   for (const box of [...knownBoxes, ...unknownBoxes]) {
     const docs = byBox.get(box)!.sort((a, b) => a.hpath.localeCompare(b.hpath))
-    const docGroups = docs.map((doc) =>
-      buildDocGroup(doc.rootId, box, doc.hpath, doc.tasks, untitledLabel, showHeadings, levels, sortTodoFirst),
-    )
-    groups.push(makeGroup(`nb:${box}`, "notebook", notebookNames.get(box) ?? box, 0, [], docGroups))
+    let nbTotal = 0
+    let nbDone = 0
+    const visibleDocGroups: TaskGroup[] = []
+
+    for (const doc of docs) {
+      const res = buildDocGroup(
+        doc.rootId,
+        box,
+        doc.hpath,
+        doc.tasks,
+        untitledLabel,
+        showHeadings,
+        levels,
+        sortTodoFirst,
+        statusFilter,
+      )
+      nbTotal += res.total
+      nbDone += res.done
+      if (res.hasVisible && res.group) {
+        visibleDocGroups.push(res.group)
+      }
+    }
+
+    if (visibleDocGroups.length > 0) {
+      groups.push(
+        makeGroup(
+          `nb:${box}`,
+          "notebook",
+          notebookNames.get(box) ?? box,
+          0,
+          [],
+          visibleDocGroups,
+          nbTotal,
+          nbDone,
+        ),
+      )
+    }
   }
   return groups
 }
@@ -261,12 +289,30 @@ function buildDocGroup(
   showHeadings: boolean,
   levels: ReadonlySet<number>,
   sortTodoFirst = false,
-): TaskGroup {
+  statusFilter: StatusFilter = "all",
+): { group: TaskGroup | null, hasVisible: boolean, total: number, done: number } {
   const { parentPath, leaf } = splitHpath(hpath)
   const title = leaf || untitledLabel
 
   if (!showHeadings) {
-    return makeGroup(`d:${rootId}`, "doc", title, 0, groupByList(tasks, sortTodoFirst), [], { parentPath, hpath, box })
+    const total = tasks.length
+    const done = tasks.filter((t) => t.done).length
+    const visibleTasks = filterTasksByStatus(tasks, statusFilter)
+    const hasVisible = visibleTasks.length > 0
+    const group = hasVisible
+      ? makeGroup(
+          `d:${rootId}`,
+          "doc",
+          title,
+          0,
+          groupByList(visibleTasks, sortTodoFirst),
+          [],
+          total,
+          done,
+          { parentPath, hpath, box },
+        )
+      : null
+    return { group, hasVisible, total, done }
   }
 
   // 每个 headingId -> 从文档级到自身的祖先链（任务路径天然覆盖全部相关标题）
@@ -340,17 +386,85 @@ function buildDocGroup(
   }
   roots.sort(siblingOrder)
 
-  const buildHeadingGroup = (node: HeadingNode): TaskGroup =>
-    makeGroup(
+  const buildHeadingGroup = (
+    node: HeadingNode,
+  ): { group: TaskGroup | null, hasVisible: boolean, total: number, done: number } => {
+    const directTasks = byHeading.get(node.id) ?? []
+    const directTotal = directTasks.length
+    const directDone = directTasks.filter((t) => t.done).length
+
+    const childNodes = childrenMap.get(node.id) ?? []
+    const childResults = childNodes.map(buildHeadingGroup)
+
+    let total = directTotal
+    let done = directDone
+    const visibleChildren: TaskGroup[] = []
+
+    for (const res of childResults) {
+      total += res.total
+      done += res.done
+      if (res.hasVisible && res.group) {
+        visibleChildren.push(res.group)
+      }
+    }
+
+    const visibleDirectTasks = filterTasksByStatus(directTasks, statusFilter)
+    const hasVisible = visibleDirectTasks.length > 0 || visibleChildren.length > 0
+
+    if (!hasVisible) {
+      return { group: null, hasVisible: false, total, done }
+    }
+
+    const group = makeGroup(
       `h:${node.id}`,
       "heading",
       node.content || "…",
       node.level,
-      groupByList(byHeading.get(node.id) ?? [], sortTodoFirst),
-      (childrenMap.get(node.id) ?? []).map(buildHeadingGroup),
+      groupByList(visibleDirectTasks, sortTodoFirst),
+      visibleChildren,
+      total,
+      done,
     )
 
-  const docListGroups = groupByList(byHeading.get(null) ?? [], sortTodoFirst)
-  const headingChildren = roots.map(buildHeadingGroup)
-  return makeGroup(`d:${rootId}`, "doc", title, 0, docListGroups, headingChildren, { parentPath, hpath, box })
+    return { group, hasVisible: true, total, done }
+  }
+
+  const docDirectTasks = byHeading.get(null) ?? []
+  const docDirectTotal = docDirectTasks.length
+  const docDirectDone = docDirectTasks.filter((t) => t.done).length
+
+  const headingResults = roots.map(buildHeadingGroup)
+
+  let docTotal = docDirectTotal
+  let docDone = docDirectDone
+  const visibleHeadingChildren: TaskGroup[] = []
+
+  for (const res of headingResults) {
+    docTotal += res.total
+    docDone += res.done
+    if (res.hasVisible && res.group) {
+      visibleHeadingChildren.push(res.group)
+    }
+  }
+
+  const visibleDocDirectTasks = filterTasksByStatus(docDirectTasks, statusFilter)
+  const hasVisible = visibleDocDirectTasks.length > 0 || visibleHeadingChildren.length > 0
+
+  if (!hasVisible) {
+    return { group: null, hasVisible: false, total: docTotal, done: docDone }
+  }
+
+  const group = makeGroup(
+    `d:${rootId}`,
+    "doc",
+    title,
+    0,
+    groupByList(visibleDocDirectTasks, sortTodoFirst),
+    visibleHeadingChildren,
+    docTotal,
+    docDone,
+    { parentPath, hpath, box },
+  )
+
+  return { group, hasVisible: true, total: docTotal, done: docDone }
 }

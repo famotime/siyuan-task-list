@@ -56,5 +56,6 @@
   "noHeadingsTag": "平铺",
   "removeFavorite": "删除该收藏",
   "favActionFavorited": "已收藏当前条件（点击取消）",
-  "noFavoritesHint": "暂无收藏，选中文档后点击下方按钮可收藏"
+  "noFavoritesHint": "暂无收藏，选中文档后点击下方按钮可收藏",
+  "groupCountTooltip": "未完成 ${todo} / 全部 ${total}"
 }

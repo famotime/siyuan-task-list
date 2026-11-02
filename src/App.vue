@@ -86,7 +86,7 @@ import { markerForStatus } from "@/data/status"
 import {
   buildTaskGroups,
   collectTasks,
-  filterTasks,
+  filterTasksByKeyword,
   type StatusFilter,
   type TaskCollection,
 } from "@/data/tasks"
@@ -124,11 +124,12 @@ const groups = computed<TaskGroup[]>(() => {
   if (!collection.value) {
     return []
   }
-  const visible = filterTasks(collection.value.tasks, statusFilter.value, keyword.value)
-  return buildTaskGroups(visible, collection.value.notebookNames, i18n.untitledGroup, {
+  const baseTasks = filterTasksByKeyword(collection.value.tasks, keyword.value)
+  return buildTaskGroups(baseTasks, collection.value.notebookNames, i18n.untitledGroup, {
     showHeadings: showHeadings.value,
     headingLevels: headingLevels.value,
     sortTodoFirst: sortTodoFirst.value,
+    statusFilter: statusFilter.value,
   })
 })
 
