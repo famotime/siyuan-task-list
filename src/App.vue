@@ -4,7 +4,15 @@
       v-model="scope"
       :notebooks="notebooks"
       :resolved-doc-id="resolvedDocId"
+      :favorites="favorites"
+      :is-favorited="isCurrentFavorited"
+      :status-filter="statusFilter"
+      :show-headings="showHeadings"
+      :heading-levels="headingLevels"
       @refresh="refresh()"
+      @toggle-favorite="onToggleFavorite"
+      @apply-favorite="onApplyFavorite"
+      @remove-favorite="onRemoveFavorite"
     />
     <FilterBar
       v-model:status="statusFilter"
@@ -83,6 +91,7 @@ import {
   type TaskCollection,
 } from "@/data/tasks"
 import type {
+  PathFavorite,
   ScopeSelection,
   TaskGroup,
   TaskItem,
@@ -96,6 +105,7 @@ const scope = ref<ScopeSelection>({ ...plugin.config.scope })
 const statusFilter = ref<StatusFilter>("all")
 const keyword = ref("")
 const notebooks = ref<{ id: string, name: string }[]>([])
+const favorites = ref<PathFavorite[]>([])
 const collection = ref<TaskCollection | null>(null)
 const loading = ref(false)
 const errorMessage = ref("")
@@ -296,6 +306,9 @@ onMounted(async () => {
   // 监听插件设置保存通知，即时响应排序等首选项变更
   ;(plugin as any).onConfigUpdated = (cfg: any) => {
     sortTodoFirst.value = Boolean(cfg.sortTodoFirst)
+    if (Array.isArray(cfg.favorites)) {
+      favorites.value = [...cfg.favorites]
+    }
   }
   // 面板挂载可能早于插件 onload 的配置加载完成，先等待再初始化范围与视图状态
   await (plugin as any).readyPromise?.catch?.(() => {})
@@ -306,6 +319,7 @@ onMounted(async () => {
     : [1, 2, 3, 4, 5, 6]
   folded.value = new Set(Array.isArray(plugin.config.foldedKeys) ? plugin.config.foldedKeys : [])
   sortTodoFirst.value = Boolean(plugin.config.sortTodoFirst)
+  favorites.value = Array.isArray(plugin.config.favorites) ? [...plugin.config.favorites] : []
   try {
     const result = await lsNotebooks()
     notebooks.value = (result?.notebooks ?? [])
@@ -327,10 +341,12 @@ onUnmounted(() => {
   clearTimeout(saveTimer)
   clearTimeout(confirmTimer)
   clearTimeout(viewSaveTimer)
+  clearTimeout(favSaveTimer)
 })
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let viewSaveTimer: ReturnType<typeof setTimeout> | undefined
+let favSaveTimer: ReturnType<typeof setTimeout> | undefined
 
 // 用户改动范围时：防抖刷新 + 防抖持久化（refresh 路径绝不写盘）
 watch(scope, () => {
@@ -353,6 +369,15 @@ watch([showHeadings, headingLevels, folded], () => {
     plugin.saveConfig()
   }, 600)
 })
+
+// 常用路径收藏变更：防抖持久化
+watch(favorites, () => {
+  clearTimeout(favSaveTimer)
+  favSaveTimer = setTimeout(() => {
+    plugin.config.favorites = [...favorites.value]
+    plugin.saveConfig()
+  }, 400)
+}, { deep: true })
 
 function onToggleFold(key: string) {
   const next = new Set(folded.value)
@@ -415,5 +440,102 @@ function onExcludeDoc(group: TaskGroup) {
     excludePaths: normalizeExcludePaths([...(scope.value.excludePaths ?? []), fullPath]),
   }
   pushMsg((i18n.docExcluded || "已排除「${doc}」及其子文档的任务").replace("${doc}", group.title), 4000)
+}
+
+// ---------- 常用路径收藏 ----------
+
+const isCurrentFavorited = computed(() => {
+  if (scope.value.mode !== "path" || !scope.value.docId) {
+    return false
+  }
+  return favorites.value.some((fav) => matchesCurrentState(fav))
+})
+
+function matchesCurrentState(fav: PathFavorite): boolean {
+  if (fav.docId !== scope.value.docId) {
+    return false
+  }
+  if (Boolean(fav.includeSubdocs) !== Boolean(scope.value.includeSubdocs)) {
+    return false
+  }
+  if (Boolean(fav.includeLinked) !== Boolean(scope.value.includeLinked)) {
+    return false
+  }
+  if (fav.status !== statusFilter.value) {
+    return false
+  }
+  if (fav.showHeadings !== showHeadings.value) {
+    return false
+  }
+  if (!arraysEqual(fav.headingLevels, headingLevels.value)) {
+    return false
+  }
+  return true
+}
+
+function arraysEqual(a?: number[], b?: number[]): boolean {
+  const arrA = a ?? []
+  const arrB = b ?? []
+  if (arrA.length !== arrB.length) {
+    return false
+  }
+  const sortedA = [...arrA].sort((x, y) => x - y)
+  const sortedB = [...arrB].sort((x, y) => x - y)
+  return sortedA.every((val, idx) => val === sortedB[idx])
+}
+
+function onToggleFavorite() {
+  if (scope.value.mode !== "path" || !scope.value.docId) {
+    return
+  }
+  const matchIdx = favorites.value.findIndex((fav) => matchesCurrentState(fav))
+  if (matchIdx >= 0) {
+    favorites.value.splice(matchIdx, 1)
+    favorites.value = [...favorites.value]
+    pushMsg(i18n.favoriteRemoved || "已取消收藏")
+    return
+  }
+  if (favorites.value.length >= 10) {
+    pushMsg(i18n.favoriteLimitReached || "收藏已达 10 个上限，请先删除不需要的项", 4000)
+    return
+  }
+  const leafTitle = (scope.value.hpath || "").replace(/^\/+/, "").split("/").filter(Boolean).pop() || ""
+  const newFav: PathFavorite = {
+    id: `fav-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    docId: scope.value.docId,
+    box: scope.value.box || "",
+    path: scope.value.path || "",
+    hpath: scope.value.hpath || "",
+    title: leafTitle || (i18n.untitledGroup || "未命名文档"),
+    includeSubdocs: Boolean(scope.value.includeSubdocs),
+    includeLinked: Boolean(scope.value.includeLinked),
+    status: statusFilter.value,
+    showHeadings: showHeadings.value,
+    headingLevels: [...headingLevels.value].sort((a, b) => a - b),
+    createdAt: Date.now(),
+  }
+  favorites.value = [newFav, ...favorites.value]
+  pushMsg(i18n.favoriteAdded || "已添加到常用收藏")
+}
+
+function onApplyFavorite(fav: PathFavorite) {
+  scope.value = {
+    mode: "path",
+    docId: fav.docId,
+    box: fav.box,
+    path: fav.path,
+    hpath: fav.hpath,
+    includeSubdocs: fav.includeSubdocs ?? false,
+    includeLinked: fav.includeLinked ?? false,
+    excludePaths: scope.value.excludePaths,
+  }
+  statusFilter.value = fav.status
+  showHeadings.value = fav.showHeadings
+  headingLevels.value = [...fav.headingLevels]
+}
+
+function onRemoveFavorite(favId: string) {
+  favorites.value = favorites.value.filter((f) => f.id !== favId)
+  pushMsg(i18n.favoriteRemoved || "已取消收藏")
 }
 </script>

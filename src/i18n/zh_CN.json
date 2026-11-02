@@ -46,5 +46,13 @@
   "saved": "设置已保存",
   "loading": "加载中…",
   "expandAll": "全部展开",
-  "collapseAll": "全部折叠"
+  "collapseAll": "全部折叠",
+  "favorite": "收藏当前路径与筛选条件",
+  "unfavorite": "取消收藏",
+  "favoritesTitle": "常用收藏",
+  "favoriteAdded": "已添加到常用收藏",
+  "favoriteRemoved": "已取消收藏",
+  "favoriteLimitReached": "收藏已达 10 个上限，请先删除不需要的项",
+  "noHeadingsTag": "平铺",
+  "removeFavorite": "删除该收藏"
 }

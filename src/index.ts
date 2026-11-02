@@ -1,5 +1,5 @@
 import type { TPluginDataChangeReason } from "siyuan"
-import type { ScopeSelection } from "@/data/types"
+import type { PathFavorite, ScopeSelection } from "@/data/types"
 import { Plugin, Setting } from "siyuan"
 import { mountPanel, unmountPanel } from "@/main"
 import "@/index.scss"
@@ -29,6 +29,8 @@ export interface TaskListConfig {
   foldedKeys: string[]
   /** 未完成任务排序靠前（同级列表块内） */
   sortTodoFirst: boolean
+  /** 常用路径与筛选条件收藏项（最多10项） */
+  favorites: PathFavorite[]
 }
 
 const DEFAULT_CONFIG: TaskListConfig = {
@@ -38,6 +40,7 @@ const DEFAULT_CONFIG: TaskListConfig = {
   headingLevels: [1, 2, 3, 4, 5, 6],
   foldedKeys: [],
   sortTodoFirst: false,
+  favorites: [],
 }
 
 export default class TaskListPlugin extends Plugin {
@@ -116,6 +119,11 @@ export default class TaskListPlugin extends Plugin {
     }
     if (saved && typeof saved.sortTodoFirst === "boolean") {
       this.config.sortTodoFirst = saved.sortTodoFirst
+    }
+    if (saved && Array.isArray(saved.favorites)) {
+      this.config.favorites = saved.favorites
+        .filter((fav: any) => fav && typeof fav.id === "string" && typeof fav.docId === "string")
+        .slice(0, 10)
     }
   }
 

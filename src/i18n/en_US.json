@@ -46,5 +46,13 @@
   "saved": "Settings saved",
   "loading": "Loading…",
   "expandAll": "Expand all",
-  "collapseAll": "Collapse all"
+  "collapseAll": "Collapse all",
+  "favorite": "Favorite current path and filters",
+  "unfavorite": "Unfavorite",
+  "favoritesTitle": "Favorites",
+  "favoriteAdded": "Added to favorites",
+  "favoriteRemoved": "Removed from favorites",
+  "favoriteLimitReached": "Favorites limit of 10 reached; please remove an item first",
+  "noHeadingsTag": "Flat",
+  "removeFavorite": "Remove favorite"
 }

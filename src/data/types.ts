@@ -77,6 +77,36 @@ export interface TaskGroup {
 /** 汇总范围四档 */
 export type ScopeMode = "activeDoc" | "path" | "notebook" | "all"
 
+/** 任务状态过滤 */
+export type StatusFilter = "all" | TaskStatus
+
+/** 常用路径与筛选条件收藏项（最多10项） */
+export interface PathFavorite {
+  id: string
+  /** 根文档 id */
+  docId: string
+  /** 笔记本 id */
+  box: string
+  /** 根文档 .sy 路径 */
+  path: string
+  /** 根文档可读路径 */
+  hpath: string
+  /** 文档展示标题 */
+  title: string
+  /** 是否包含子文档 */
+  includeSubdocs?: boolean
+  /** 是否包含链接文档 */
+  includeLinked?: boolean
+  /** 任务完成状态过滤（全部/未完成/已完成） */
+  status: StatusFilter
+  /** 是否开启标题分组 */
+  showHeadings: boolean
+  /** 标题分组层级（1-6） */
+  headingLevels: number[]
+  /** 收藏时间戳 */
+  createdAt: number
+}
+
 export interface ScopeSelection {
   mode: ScopeMode
   /** activeDoc / path 档：根文档 id */

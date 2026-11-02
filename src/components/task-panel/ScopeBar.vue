@@ -21,6 +21,16 @@
         :class="{ 'tl-chip__caret--open': popoverOpen }"
       />
     </button>
+    <button
+      v-if="modelValue.mode === 'path' && modelValue.docId"
+      type="button"
+      class="tl-icon-btn tl-scopebar__fav ariaLabel"
+      :class="{ 'tl-scopebar__fav--active': isFavorited }"
+      :aria-label="isFavorited ? (i18n.unfavorite || '取消收藏') : (i18n.favorite || '收藏当前路径与筛选条件')"
+      @click.stop="emit('toggle-favorite')"
+    >
+      <TlIcon :path="STAR_PATH" />
+    </button>
     <span class="tl-scopebar__spacer"></span>
     <button
       type="button"
@@ -78,6 +88,71 @@
         </div>
 
         <template v-if="modelValue.mode === 'path'">
+          <div
+            v-if="favorites && favorites.length > 0"
+            class="tl-scope-pop__sec tl-fav-sec"
+          >
+            <div class="tl-scope-pop__label tl-fav-label">
+              <span>{{ i18n.favoritesTitle || "常用收藏" }}</span>
+              <span class="tl-fav-count">{{ favorites.length }}/10</span>
+            </div>
+            <div class="tl-fav-list">
+              <div
+                v-for="fav in favorites"
+                :key="fav.id"
+                class="tl-fav-item"
+                :class="{ 'tl-fav-item--active': isItemActive(fav) }"
+                @click="pickFavorite(fav)"
+              >
+                <div class="tl-fav-item__main">
+                  <div
+                    class="tl-fav-item__title"
+                    :title="fav.hpath"
+                  >
+                    {{ fav.title || hpathLeaf(fav.hpath) }}
+                  </div>
+                  <div class="tl-fav-item__tags">
+                    <span class="tl-fav-tag tl-fav-tag--status">
+                      {{ statusTagText(fav.status) }}
+                    </span>
+                    <span
+                      v-if="fav.includeSubdocs"
+                      class="tl-fav-tag"
+                    >
+                      {{ i18n.suffixSub || "＋子" }}
+                    </span>
+                    <span
+                      v-if="fav.includeLinked"
+                      class="tl-fav-tag"
+                    >
+                      {{ i18n.suffixLinked || "＋链" }}
+                    </span>
+                    <span
+                      v-if="!fav.showHeadings"
+                      class="tl-fav-tag"
+                    >
+                      {{ i18n.noHeadingsTag || "平铺" }}
+                    </span>
+                    <span
+                      v-else-if="fav.headingLevels && fav.headingLevels.length < 6"
+                      class="tl-fav-tag"
+                    >
+                      H{{ fav.headingLevels.join(',') }}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="tl-icon-btn tl-fav-item__del ariaLabel"
+                  :aria-label="i18n.removeFavorite || '删除该收藏'"
+                  @click.stop="emit('remove-favorite', fav.id)"
+                >
+                  <TlIcon path="M18 6 6 18M6 6l12 12" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="tl-scope-pop__sec">
             <select
               class="b3-select tl-scope-pop__select"
@@ -284,25 +359,36 @@ import { sql } from "@/api"
 import { listDocsOfNotebook, normalizeExcludePaths, parseExcludePath } from "@/data/scope"
 import type {
   DocEntry,
+  PathFavorite,
   ScopeMode,
   ScopeSelection,
+  StatusFilter,
 } from "@/data/types"
 import { usePlugin } from "@/main"
 
 const FILE_TEXT_PATH = "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z M14 2v4a2 2 0 0 0 2 2h4 M16 13H8 M16 17H8 M10 9H8"
 const BOOK_PATH = "M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"
 const FILES_PATH = "M20 7h-3a2 2 0 0 1-2-2V2 M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l5 5v9a2 2 0 0 1-2 2Z M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8"
+const STAR_PATH = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
 
 const props = defineProps<{
   modelValue: ScopeSelection
   notebooks: { id: string, name: string }[]
   /** activeDoc 档在查询时解析出的文档 id（用于摘要名回显） */
   resolvedDocId?: string
+  favorites?: PathFavorite[]
+  isFavorited?: boolean
+  statusFilter?: StatusFilter
+  showHeadings?: boolean
+  headingLevels?: number[]
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: ScopeSelection]
   refresh: []
+  'toggle-favorite': []
+  'apply-favorite': [fav: PathFavorite]
+  'remove-favorite': [id: string]
 }>()
 
 const i18n = usePlugin().i18n
@@ -723,5 +809,56 @@ function pickDoc(doc: DocEntry) {
     includeLinked: props.modelValue.includeLinked ?? false,
     excludePaths: props.modelValue.excludePaths,
   })
+}
+
+function isItemActive(fav: PathFavorite): boolean {
+  if (props.modelValue.mode !== "path") {
+    return false
+  }
+  if (props.modelValue.docId !== fav.docId) {
+    return false
+  }
+  if (Boolean(props.modelValue.includeSubdocs) !== Boolean(fav.includeSubdocs)) {
+    return false
+  }
+  if (Boolean(props.modelValue.includeLinked) !== Boolean(fav.includeLinked)) {
+    return false
+  }
+  if (props.statusFilter && fav.status !== props.statusFilter) {
+    return false
+  }
+  if (props.showHeadings !== undefined && fav.showHeadings !== props.showHeadings) {
+    return false
+  }
+  if (props.headingLevels && !arraysEqual(fav.headingLevels, props.headingLevels)) {
+    return false
+  }
+  return true
+}
+
+function arraysEqual(a?: number[], b?: number[]): boolean {
+  const arrA = a ?? []
+  const arrB = b ?? []
+  if (arrA.length !== arrB.length) {
+    return false
+  }
+  const sortedA = [...arrA].sort((x, y) => x - y)
+  const sortedB = [...arrB].sort((x, y) => x - y)
+  return sortedA.every((val, idx) => val === sortedB[idx])
+}
+
+function statusTagText(status?: StatusFilter): string {
+  if (status === "todo") {
+    return i18n.filterTodo || "未完成"
+  }
+  if (status === "done") {
+    return i18n.filterDone || "已完成"
+  }
+  return i18n.filterAll || "全部"
+}
+
+function pickFavorite(fav: PathFavorite) {
+  popoverOpen.value = false
+  emit("apply-favorite", fav)
 }
 </script>
