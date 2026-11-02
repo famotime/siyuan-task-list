@@ -16,32 +16,22 @@ const pluginInfo = require("./plugin.json")
 export default defineConfig(({
   mode,
 }) => {
-
-  console.log('mode=>', mode)
   const env = loadEnv(mode, process.cwd())
   const {
     VITE_SIYUAN_WORKSPACE_PATH,
   } = env
-  console.log('env=>', env)
-
 
   const siyuanWorkspacePath = VITE_SIYUAN_WORKSPACE_PATH
   let devDistDir = './dev'
   if (!siyuanWorkspacePath) {
     console.log("\nSiyuan workspace path is not set.")
   } else {
-    console.log(`\nSiyuan workspace path is set:\n${siyuanWorkspacePath}`)
     devDistDir = `${siyuanWorkspacePath}/data/plugins/${pluginInfo.name}`
   }
-  console.log(`\nPlugin will build to:\n${devDistDir}`)
 
   const args = minimist(process.argv.slice(2))
   const isWatch = args.watch || args.w || false
   const distDir = isWatch ? devDistDir : "./dist"
-
-  console.log()
-  console.log("isWatch=>", isWatch)
-  console.log("distDir=>", distDir)
 
   return {
     resolve: {
@@ -77,15 +67,6 @@ export default defineConfig(({
         ],
       }),
     ],
-
-    // https://github.com/vitejs/vite/issues/1930
-    // https://vitejs.dev/guide/env-and-mode.html#env-files
-    // https://github.com/vitejs/vite/discussions/3058#discussioncomment-2115319
-    // 在这里自定义变量
-    define: {
-      "process.env.DEV_MODE": `"${isWatch}"`,
-      "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
-    },
 
     build: {
       // 输出路径

@@ -33,11 +33,6 @@
   },
   "icon": "icon.webp",
   "preview": "preview.webp",
-  "funding": {
-    "openCollective": "",
-    "patreon": "",
-    "github": ""
-  },
   "keywords": [
     "task",
     "todo",

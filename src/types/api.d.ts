@@ -1,16 +1,9 @@
-interface IResGetNotebookConf {
-  box: string
-  conf: NotebookConf
-  name: string
-}
+/**
+ * 本插件用到的内核 API 响应结构（全局类型声明）。
+ */
 
 interface IReslsNotebooks {
   notebooks: Notebook[]
-}
-
-interface IResUpload {
-  errFiles: string[]
-  succMap: { [key: string]: string }
 }
 
 interface IResdoOperations {
@@ -21,44 +14,4 @@ interface IResdoOperations {
 interface IResGetBlockKramdown {
   id: BlockId
   kramdown: string
-}
-
-interface IResGetChildBlock {
-  id: BlockId
-  type: BlockType
-  subtype?: BlockSubType
-}
-
-interface IResGetTemplates {
-  content: string
-  path: string
-}
-
-interface IResReadDir {
-  isDir: boolean
-  isSymlink: boolean
-  name: string
-}
-
-interface IResExportMdContent {
-  hPath: string
-  content: string
-}
-
-interface IResBootProgress {
-  progress: number
-  details: string
-}
-
-interface IResForwardProxy {
-  body: string
-  contentType: string
-  elapsed: number
-  headers: { [key: string]: string }
-  status: number
-  url: string
-}
-
-interface IResExportResources {
-  path: string
 }
