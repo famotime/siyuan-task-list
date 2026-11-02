@@ -51,9 +51,11 @@
           v-else
           :groups="groups"
           :folded="folded"
+          :can-exclude="canExclude"
           @toggle="onToggle"
           @jump="onJump"
           @toggle-fold="onToggleFold"
+          @exclude-doc="onExcludeDoc"
         />
       </template>
     </div>
@@ -68,7 +70,8 @@ import FilterBar from "@/components/task-panel/FilterBar.vue"
 import ScopeBar from "@/components/task-panel/ScopeBar.vue"
 import TaskTree from "@/components/task-panel/TaskTree.vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
-import { lsNotebooks, pushErrMsg, updateTaskListItemMarker } from "@/api"
+import { lsNotebooks, pushErrMsg, pushMsg, updateTaskListItemMarker } from "@/api"
+import { normalizeExcludePaths } from "@/data/scope"
 import { markerForStatus } from "@/data/status"
 import {
   buildTaskGroups,
@@ -117,6 +120,11 @@ const groups = computed<TaskGroup[]>(() => {
 
 const truncatedText = computed(() =>
   (i18n.truncated || "").replace("${n}", String(plugin.config.limit)),
+)
+
+/** 文档级排除按钮的显示条件：排除谓词仅在 notebook / all 档下推到查询 */
+const canExclude = computed(() =>
+  scope.value.mode === "notebook" || scope.value.mode === "all",
 )
 
 async function refresh() {
@@ -336,5 +344,23 @@ function onToggleFold(key: string) {
     next.add(key)
   }
   folded.value = next
+}
+
+/**
+ * 文档节点悬浮按钮：将该文档（含子文档）加入排除清单。
+ * 复用 notebook / all 档的 excludePaths 前缀排除；整体替换 scope 触发
+ * 既有 deep watch（100ms 防抖刷新、800ms 防抖持久化），此处不再手动刷新。
+ * 移除仍走范围浮层的"排除路径"列表。
+ */
+function onExcludeDoc(group: TaskGroup) {
+  const hpath = (group.hpath ?? "").trim()
+  if (!hpath || hpath === "/") {
+    return
+  }
+  scope.value = {
+    ...scope.value,
+    excludePaths: normalizeExcludePaths([...(scope.value.excludePaths ?? []), hpath]),
+  }
+  pushMsg((i18n.docExcluded || "已排除「${doc}」及其子文档的任务").replace("${doc}", group.title), 4000)
 }
 </script>

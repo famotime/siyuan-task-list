@@ -20,6 +20,8 @@
   "excludePathPlaceholder": "Path prefix, e.g. /diary",
   "addExclude": "Add excluded path",
   "removeExclude": "Remove this excluded path",
+  "excludeDocBtn": "Exclude this document",
+  "docExcluded": "Excluded \"${doc}\" and its subdocs",
   "headingsShow": "Heading groups",
   "resetDefault": "Reset to default",
   "pickerTitle": "Pick a document",

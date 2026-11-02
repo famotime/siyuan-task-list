@@ -101,6 +101,15 @@ export async function sqlWithMeta<T = any>(stmt: string): Promise<ISQLResult<T>>
 
 // **************************************** Notification ****************************************
 
+export async function pushMsg(msg: string, timeout: number = 7000) {
+  const payload = {
+    msg,
+    timeout,
+  }
+  const url = "/api/notification/pushMsg"
+  return request(url, payload)
+}
+
 export async function pushErrMsg(msg: string, timeout: number = 7000) {
   const payload = {
     msg,

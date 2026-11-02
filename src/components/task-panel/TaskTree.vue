@@ -14,6 +14,7 @@
         :class="{
           'ariaLabel': group.kind === 'doc' && group.hpath,
           'tl-group__head--folded': folded.has(group.key),
+          'tl-group__head--can-exclude': canExclude && group.kind === 'doc' && !!group.hpath,
         }"
         :aria-label="group.kind === 'doc' ? group.hpath : undefined"
         @click="emit('toggleFold', group.key)"
@@ -46,6 +47,18 @@
           :class="'tl-pill--' + group.kind"
         >{{ pillText(group) }}</span>
         <span class="tl-group__count">{{ group.total - group.done }}/{{ group.total }}</span>
+        <button
+          v-if="canExclude && group.kind === 'doc' && group.hpath"
+          type="button"
+          class="tl-group__exclude ariaLabel"
+          :aria-label="i18n.excludeDocBtn"
+          @click.stop="emit('excludeDoc', group)"
+        >
+          <TlIcon
+            path="M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M4.93 4.93l14.14 14.14"
+            class="tl-group__exclude__icon"
+          />
+        </button>
       </div>
       <div
         v-show="!folded.has(group.key)"
@@ -69,9 +82,11 @@
           :groups="group.children"
           :depth="depth + 1"
           :folded="folded"
+          :can-exclude="canExclude"
           @toggle="emit('toggle', $event)"
           @jump="emit('jump', $event)"
           @toggle-fold="emit('toggleFold', $event)"
+          @exclude-doc="emit('excludeDoc', $event)"
         />
       </div>
     </div>
@@ -90,12 +105,15 @@ const props = withDefaults(defineProps<{
   folded: Set<string>
   /** 树深度：注入 --tl-depth，组头与任务行按同一网格缩进 */
   depth?: number
-}>(), { depth: 0 })
+  /** 是否显示文档级排除按钮：排除谓词仅在 notebook / all 档生效（App 计算） */
+  canExclude?: boolean
+}>(), { depth: 0, canExclude: false })
 
 const emit = defineEmits<{
   toggle: [task: TaskItem]
   jump: [task: TaskItem]
   toggleFold: [key: string]
+  excludeDoc: [group: TaskGroup]
 }>()
 
 const i18n = usePlugin().i18n

@@ -611,6 +611,58 @@
   background-color: var(--b3-theme-surface);
   border-radius: 8px;
   padding: 1px 6px;
+  transition: opacity 0.12s ease;
+}
+
+// ---------- 文档组头悬浮排除按钮 ----------
+// 悬浮文档组头时，尾部类型胶囊与计数淡出，排除按钮原位浮现（点击将该文档
+// 含子文档加入排除清单）；按钮默认不可见也不可命中，避免误触与误提示
+.tl-group__head--can-exclude {
+  position: relative;
+
+  &:hover {
+    .tl-pill,
+    .tl-group__count {
+      opacity: 0;
+    }
+
+    .tl-group__exclude {
+      visibility: visible;
+      opacity: 1;
+    }
+  }
+}
+
+.tl-group__exclude {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  visibility: hidden;
+  opacity: 0;
+  color: var(--b3-theme-on-surface-light);
+  border-radius: var(--b3-border-radius);
+  transition: opacity 0.12s ease;
+
+  &:hover {
+    color: var(--b3-theme-primary);
+  }
+}
+
+.tl-group__exclude__icon {
+  width: 12px;
+  height: 12px;
+  // 命中区域整体交给按钮，图标不拦事件
+  pointer-events: none;
 }
 
 // ---------- 类型胶囊 ----------
@@ -624,6 +676,7 @@
   border-radius: 8px;
   user-select: none;
   white-space: nowrap;
+  transition: opacity 0.12s ease;
 
   &--notebook {
     background-color: var(--b3-theme-primary-lightest);

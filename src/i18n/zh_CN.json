@@ -20,6 +20,8 @@
   "excludePathPlaceholder": "路径前缀，如 /日记",
   "addExclude": "添加排除路径",
   "removeExclude": "移除该排除路径",
+  "excludeDocBtn": "将此文档加入排除清单",
+  "docExcluded": "已排除「${doc}」及其子文档的任务",
   "headingsShow": "标题分组",
   "resetDefault": "恢复默认",
   "pickerTitle": "选择文档",
