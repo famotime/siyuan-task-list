@@ -647,9 +647,10 @@
   transition: opacity 0.12s ease;
 }
 
-// ---------- 文档组头悬浮排除按钮 ----------
-// 悬浮文档组头时，尾部类型胶囊与计数淡出，排除按钮原位浮现（点击将该文档
-// 含子文档加入排除清单）；按钮默认不可见也不可命中，避免误触与误提示
+// ---------- 文档组头悬浮操作栏（展开/折叠 + 排除） ----------
+// 悬浮文档组头时，尾部类型胶囊与计数淡出，操作栏原位浮现；
+// 操作栏默认不可见也不可命中，避免误触与误提示
+.tl-group__head--has-actions,
 .tl-group__head--can-exclude {
   position: relative;
 
@@ -659,6 +660,7 @@
       opacity: 0;
     }
 
+    .tl-group__actions,
     .tl-group__exclude {
       visibility: visible;
       opacity: 1;
@@ -666,11 +668,21 @@
   }
 }
 
-.tl-group__exclude {
+.tl-group__actions {
   position: absolute;
-  right: 10px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.tl-group__action-btn,
+.tl-group__exclude {
   width: 20px;
   height: 20px;
   display: inline-flex;
@@ -680,17 +692,17 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  visibility: hidden;
-  opacity: 0;
   color: var(--b3-theme-on-surface-light);
   border-radius: var(--b3-border-radius);
-  transition: opacity 0.12s ease;
+  transition: color 0.12s ease, background-color 0.12s ease;
 
   &:hover {
     color: var(--b3-theme-primary);
+    background-color: var(--b3-theme-surface-lighter, rgba(0, 0, 0, 0.05));
   }
 }
 
+.tl-group__action-icon,
 .tl-group__exclude__icon {
   width: 12px;
   height: 12px;

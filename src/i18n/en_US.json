@@ -44,5 +44,7 @@
   "queryFailed": "Task query failed: ${msg}",
   "toggleFailed": "Failed to write back task status",
   "saved": "Settings saved",
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "expandAll": "Expand all",
+  "collapseAll": "Collapse all"
 }

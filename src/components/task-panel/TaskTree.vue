@@ -14,7 +14,8 @@
         :class="{
           'ariaLabel': group.kind === 'doc' && group.hpath,
           'tl-group__head--folded': folded.has(group.key),
-          'tl-group__head--can-exclude': canExclude && group.kind === 'doc' && !!group.hpath,
+          'tl-group__head--has-actions': hasActions(group),
+          'tl-group__head--can-exclude': canExcludeDoc(group),
         }"
         :aria-label="group.kind === 'doc' ? group.hpath : undefined"
         @click="emit('toggleFold', group.key)"
@@ -43,18 +44,35 @@
           :class="'tl-pill--' + group.kind"
         >{{ pillText(group) }}</span>
         <span class="tl-group__count">{{ group.total - group.done }}/{{ group.total }}</span>
-        <button
-          v-if="canExclude && group.kind === 'doc' && group.hpath"
-          type="button"
-          class="tl-group__exclude ariaLabel"
-          :aria-label="i18n.excludeDocBtn"
-          @click.stop="emit('excludeDoc', group)"
+        <div
+          v-if="hasActions(group)"
+          class="tl-group__actions"
         >
-          <TlIcon
-            path="M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M4.93 4.93l14.14 14.14"
-            class="tl-group__exclude__icon"
-          />
-        </button>
+          <button
+            v-if="canFoldAll(group)"
+            type="button"
+            class="tl-group__action-btn ariaLabel"
+            :aria-label="isAllExpanded(group) ? (i18n.collapseAll || '全部折叠') : (i18n.expandAll || '全部展开')"
+            @click.stop="emit('toggleFoldAll', group)"
+          >
+            <TlIcon
+              :path="isAllExpanded(group) ? ICON_CHEVRONS_UP : ICON_CHEVRONS_DOWN"
+              class="tl-group__action-icon"
+            />
+          </button>
+          <button
+            v-if="canExcludeDoc(group)"
+            type="button"
+            class="tl-group__action-btn ariaLabel"
+            :aria-label="i18n.excludeDocBtn"
+            @click.stop="emit('excludeDoc', group)"
+          >
+            <TlIcon
+              :path="ICON_EXCLUDE"
+              class="tl-group__action-icon"
+            />
+          </button>
+        </div>
       </div>
       <div
         v-show="!folded.has(group.key)"
@@ -84,6 +102,7 @@
           @toggle="emit('toggle', $event)"
           @jump="emit('jump', $event)"
           @toggle-fold="emit('toggleFold', $event)"
+          @toggle-fold-all="emit('toggleFoldAll', $event)"
           @exclude-doc="emit('excludeDoc', $event)"
         />
       </div>
@@ -113,10 +132,49 @@ const emit = defineEmits<{
   toggle: [task: TaskItem]
   jump: [task: TaskItem]
   toggleFold: [key: string]
+  toggleFoldAll: [group: TaskGroup]
   excludeDoc: [group: TaskGroup]
 }>()
 
 const i18n = usePlugin().i18n
+
+const ICON_CHEVRONS_DOWN = "m7 6 5 5 5-5 M7 13l5 5 5-5"
+const ICON_CHEVRONS_UP = "m17 11-5-5-5 5 M17 18l-5-5-5 5"
+const ICON_EXCLUDE = "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M4.93 4.93l14.14 14.14"
+
+/** 仅在存在标题子层级时提供全部展开/折叠按钮 */
+function canFoldAll(group: TaskGroup): boolean {
+  return group.kind === "doc" && group.children.length > 0
+}
+
+/** 是否满足排除文档操作条件 */
+function canExcludeDoc(group: TaskGroup): boolean {
+  return props.canExclude && group.kind === "doc" && Boolean(group.hpath)
+}
+
+/** 是否拥有悬浮操作栏 */
+function hasActions(group: TaskGroup): boolean {
+  return canFoldAll(group) || canExcludeDoc(group)
+}
+
+/** 递归收集某分组自身及所有后代分组的 key */
+function collectGroupKeys(group: TaskGroup): string[] {
+  const keys: string[] = [group.key]
+  function walk(g: TaskGroup) {
+    for (const child of g.children) {
+      keys.push(child.key)
+      walk(child)
+    }
+  }
+  walk(group)
+  return keys
+}
+
+/** 判断该文档是否已完全展开（自身展开且下属所有标题层级皆展开） */
+function isAllExpanded(group: TaskGroup): boolean {
+  const allKeys = collectGroupKeys(group)
+  return allKeys.every((k) => !props.folded.has(k))
+}
 
 function titleClass(group: TaskGroup): string {
   if (group.kind === "doc") {

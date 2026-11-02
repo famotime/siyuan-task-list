@@ -56,6 +56,7 @@
           @toggle="onToggle"
           @jump="onJump"
           @toggle-fold="onToggleFold"
+          @toggle-fold-all="onToggleFoldAll"
           @exclude-doc="onExcludeDoc"
         />
       </template>
@@ -359,6 +360,35 @@ function onToggleFold(key: string) {
     next.delete(key)
   } else {
     next.add(key)
+  }
+  folded.value = next
+}
+
+/**
+ * 文档节点悬浮操作：全部展开 / 全部折叠该文档的所有层级。
+ * - 若文档自身折叠或存在任意未展开的子标题：全部展开（从 folded 移除文档及所有子层级 key）
+ * - 若文档自身及所有子标题均处于展开态：全部折叠（将文档及所有子层级 key 全部写入 folded）
+ */
+function onToggleFoldAll(group: TaskGroup) {
+  const allKeys = [group.key]
+  function walk(g: TaskGroup) {
+    for (const child of g.children) {
+      allKeys.push(child.key)
+      walk(child)
+    }
+  }
+  walk(group)
+
+  const isExpanded = allKeys.every((k) => !folded.value.has(k))
+  const next = new Set(folded.value)
+  if (isExpanded) {
+    for (const key of allKeys) {
+      next.add(key)
+    }
+  } else {
+    for (const key of allKeys) {
+      next.delete(key)
+    }
   }
   folded.value = next
 }
