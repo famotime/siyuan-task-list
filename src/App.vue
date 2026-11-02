@@ -52,6 +52,7 @@
           :groups="groups"
           :folded="folded"
           :can-exclude="canExclude"
+          :keyword="keyword"
           @toggle="onToggle"
           @jump="onJump"
           @toggle-fold="onToggleFold"
@@ -106,6 +107,7 @@ const resolvedDocId = ref<string>("")
 const showHeadings = ref(true)
 const headingLevels = ref<number[]>([1, 2, 3, 4, 5, 6])
 const folded = ref(new Set<string>())
+const sortTodoFirst = ref(plugin.config.sortTodoFirst ?? false)
 
 const groups = computed<TaskGroup[]>(() => {
   if (!collection.value) {
@@ -115,6 +117,7 @@ const groups = computed<TaskGroup[]>(() => {
   return buildTaskGroups(visible, collection.value.notebookNames, i18n.untitledGroup, {
     showHeadings: showHeadings.value,
     headingLevels: headingLevels.value,
+    sortTodoFirst: sortTodoFirst.value,
   })
 })
 
@@ -206,6 +209,9 @@ async function onToggle(task: TaskItem) {
   task.prevMarker = targetDone ? previousMarker : undefined
   task.done = targetDone
   task.marker = writeMarker
+  if (collection.value) {
+    collection.value = { ...collection.value, tasks: [...collection.value.tasks] }
+  }
   try {
     await updateTaskListItemMarker(task.id, writeMarker)
     // 写回成功：短窗口内保护乐观状态，并在索引稳定后做一次确认刷新
@@ -218,6 +224,9 @@ async function onToggle(task: TaskItem) {
     task.done = previousDone
     task.marker = previousMarker
     task.prevMarker = undefined
+    if (collection.value) {
+      collection.value = { ...collection.value, tasks: [...collection.value.tasks] }
+    }
     pushErrMsg(i18n.toggleFailed || "Failed to write back", 4000)
   }
 }
@@ -283,6 +292,10 @@ function onSwitchProtyle(event: CustomEvent<any>) {
 onMounted(async () => {
   plugin.eventBus.on("ws-main", onWsMain)
   plugin.eventBus.on("switch-protyle", onSwitchProtyle)
+  // 监听插件设置保存通知，即时响应排序等首选项变更
+  ;(plugin as any).onConfigUpdated = (cfg: any) => {
+    sortTodoFirst.value = Boolean(cfg.sortTodoFirst)
+  }
   // 面板挂载可能早于插件 onload 的配置加载完成，先等待再初始化范围与视图状态
   await (plugin as any).readyPromise?.catch?.(() => {})
   scope.value = { ...plugin.config.scope }
@@ -291,6 +304,7 @@ onMounted(async () => {
     ? [...plugin.config.headingLevels]
     : [1, 2, 3, 4, 5, 6]
   folded.value = new Set(Array.isArray(plugin.config.foldedKeys) ? plugin.config.foldedKeys : [])
+  sortTodoFirst.value = Boolean(plugin.config.sortTodoFirst)
   try {
     const result = await lsNotebooks()
     notebooks.value = (result?.notebooks ?? [])
@@ -305,6 +319,9 @@ onMounted(async () => {
 onUnmounted(() => {
   plugin.eventBus.off("ws-main", onWsMain)
   plugin.eventBus.off("switch-protyle", onSwitchProtyle)
+  if ((plugin as any).onConfigUpdated) {
+    (plugin as any).onConfigUpdated = undefined
+  }
   clearTimeout(debounceTimer)
   clearTimeout(saveTimer)
   clearTimeout(confirmTimer)
@@ -348,8 +365,8 @@ function onToggleFold(key: string) {
 
 /**
  * 文档节点悬浮按钮：将该文档（含子文档）加入排除清单。
- * 复用 notebook / all 档的 excludePaths 前缀排除；整体替换 scope 触发
- * 既有 deep watch（100ms 防抖刷新、800ms 防抖持久化），此处不再手动刷新。
+ * 路径从具体笔记本作为根目录显示（形如 /笔记本名/文档路径）。
+ * 整体替换 scope 触发既有 deep watch（100ms 防抖刷新、800ms 防抖持久化），此处不再手动刷新。
  * 移除仍走范围浮层的"排除路径"列表。
  */
 function onExcludeDoc(group: TaskGroup) {
@@ -357,9 +374,15 @@ function onExcludeDoc(group: TaskGroup) {
   if (!hpath || hpath === "/") {
     return
   }
+  const nbName
+    = (group.box ? notebooks.value.find((nb) => nb.id === group.box)?.name : "")
+    || (scope.value.mode === "notebook" && scope.value.box ? notebooks.value.find((nb) => nb.id === scope.value.box)?.name : "")
+    || ""
+  const fullPath = nbName ? `/${nbName}${hpath}` : hpath
+
   scope.value = {
     ...scope.value,
-    excludePaths: normalizeExcludePaths([...(scope.value.excludePaths ?? []), hpath]),
+    excludePaths: normalizeExcludePaths([...(scope.value.excludePaths ?? []), fullPath]),
   }
   pushMsg((i18n.docExcluded || "已排除「${doc}」及其子文档的任务").replace("${doc}", group.title), 4000)
 }

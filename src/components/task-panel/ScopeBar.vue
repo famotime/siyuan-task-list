@@ -170,39 +170,105 @@
             {{ i18n.excludePathsLabel }}
           </div>
           <div
-            v-for="p in excludeList"
-            :key="p"
-            class="tl-exclude-row"
+            v-if="displayExcludeList.length"
+            class="tl-exclude-list"
           >
-            <span
-              class="tl-exclude-row__text"
-              :title="p"
-            >{{ p }}</span>
-            <button
-              type="button"
-              class="tl-icon-btn tl-exclude-row__remove ariaLabel"
-              :aria-label="i18n.removeExclude"
-              @click="removeExclude(p)"
+            <div
+              v-for="item in displayExcludeList"
+              :key="item.raw"
+              class="tl-exclude-row"
             >
-              <TlIcon path="M18 6 6 18M6 6l12 12" />
-            </button>
+              <span
+                class="tl-exclude-row__text"
+                :title="item.display"
+              >{{ item.display }}</span>
+              <button
+                type="button"
+                class="tl-icon-btn tl-exclude-row__remove ariaLabel"
+                :aria-label="i18n.removeExclude"
+                @click="removeExclude(item.raw)"
+              >
+                <TlIcon path="M18 6 6 18M6 6l12 12" />
+              </button>
+            </div>
           </div>
-          <div class="tl-exclude-add">
-            <input
-              v-model="excludeInput"
-              class="b3-text-field tl-scope-pop__filter"
-              type="text"
-              :placeholder="i18n.excludePathPlaceholder"
-              @keydown.enter.prevent="addExclude"
+
+          <div class="tl-scope-pop__sec tl-exclude-picker">
+            <select
+              v-if="modelValue.mode === 'all'"
+              class="b3-select tl-scope-pop__select"
+              :value="excludePickBox"
+              @change="onExcludePickBoxChange($event as any)"
             >
-            <button
-              type="button"
-              class="tl-icon-btn ariaLabel"
-              :aria-label="i18n.addExclude"
-              @click="addExclude"
+              <option
+                v-for="nb in notebooks"
+                :key="nb.id"
+                :value="nb.id"
+              >
+                {{ nb.name }}
+              </option>
+            </select>
+            <div class="tl-exclude-add">
+              <input
+                ref="excludeFilterRef"
+                v-model="excludeDocFilter"
+                class="b3-text-field tl-scope-pop__filter"
+                type="text"
+                :placeholder="i18n.excludePathPlaceholder"
+                @keydown.down.prevent="moveExcludeKb(1)"
+                @keydown.up.prevent="moveExcludeKb(-1)"
+                @keydown.enter.prevent="confirmExcludeKb"
+              >
+              <button
+                type="button"
+                class="tl-icon-btn ariaLabel"
+                :aria-label="i18n.addExclude"
+                @click="confirmExcludeKb"
+              >
+                <TlIcon path="M12 5v14M5 12h14" />
+              </button>
+            </div>
+            <div
+              v-if="visibleExcludeDocs.length > 0 || (excludeDocFilter.trim() && !loadingExcludeDocs)"
+              class="tl-scope-pop__list tl-exclude-doc-list"
             >
-              <TlIcon path="M12 5v14M5 12h14" />
-            </button>
+              <button
+                v-for="(doc, i) in visibleExcludeDocs"
+                :key="doc.id"
+                type="button"
+                class="tl-doc-item"
+                :class="{
+                  'tl-doc-item--kb': i === excludeKbIndex,
+                  'tl-doc-item--excluded': isDocExcluded(doc),
+                }"
+                :style="{ paddingLeft: (8 + docDepth(doc) * 14) + 'px' }"
+                @click="pickExcludeDoc(doc)"
+                @mousemove="excludeKbIndex = -1"
+              >
+                <TlIcon
+                  :path="FILE_TEXT_PATH"
+                  class="tl-doc-item__icon"
+                />
+                <span
+                  class="tl-doc-item__name"
+                  v-html="highlightExclude(doc.title)"
+                ></span>
+                <span
+                  v-if="docParentOf(doc)"
+                  class="tl-doc-item__parent"
+                >{{ docParentOf(doc) }}</span>
+                <span
+                  v-if="isDocExcluded(doc)"
+                  class="tl-doc-item__badge"
+                >{{ i18n.docAlreadyExcluded || "已排除" }}</span>
+              </button>
+              <div
+                v-if="visibleExcludeDocs.length === 0 && !loadingExcludeDocs"
+                class="tl-scope-pop__empty"
+              >
+                {{ i18n.noMatchedDoc }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -215,7 +281,7 @@ import { computed, nextTick, ref, watch } from "vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
 import TlPopover from "@/components/_shared/TlPopover.vue"
 import { sql } from "@/api"
-import { listDocsOfNotebook, normalizeExcludePaths } from "@/data/scope"
+import { listDocsOfNotebook, normalizeExcludePaths, parseExcludePath } from "@/data/scope"
 import type {
   DocEntry,
   ScopeMode,
@@ -337,22 +403,164 @@ function onModeChange(mode: ScopeMode) {
 
 // ---------- 排除路径（notebook / all 档） ----------
 
-const excludeInput = ref("")
+const excludeFilterRef = ref<HTMLInputElement | null>(null)
+const excludeDocFilter = ref("")
+const excludeKbIndex = ref(-1)
+const excludePickBox = ref(props.notebooks[0]?.id ?? "")
+const excludeDocs = ref<DocEntry[]>([])
+const loadingExcludeDocs = ref(false)
 
-const excludeList = computed(() => props.modelValue.excludePaths ?? [])
-
-function addExclude() {
-  const normalized = normalizeExcludePaths([excludeInput.value])
-  if (normalized.length === 0) {
-    return
+const activeExcludeBox = computed(() => {
+  if (props.modelValue.mode === "notebook") {
+    return props.modelValue.box ?? props.notebooks[0]?.id ?? ""
   }
-  const merged = normalizeExcludePaths([...excludeList.value, ...normalized])
-  patch({ excludePaths: merged })
-  excludeInput.value = ""
+  return excludePickBox.value || props.notebooks[0]?.id || ""
+})
+
+const docsCache = new Map<string, DocEntry[]>()
+async function loadDocsForBox(boxId: string): Promise<DocEntry[]> {
+  if (!boxId) {
+    return []
+  }
+  if (docsCache.has(boxId)) {
+    return docsCache.get(boxId)!
+  }
+  const loaded = await listDocsOfNotebook(boxId)
+  docsCache.set(boxId, loaded)
+  return loaded
 }
 
+async function loadExcludeDocs() {
+  const box = activeExcludeBox.value
+  if (!box) {
+    excludeDocs.value = []
+    return
+  }
+  loadingExcludeDocs.value = true
+  try {
+    excludeDocs.value = await loadDocsForBox(box)
+  } catch {
+    excludeDocs.value = []
+  } finally {
+    loadingExcludeDocs.value = false
+  }
+}
+
+function onExcludePickBoxChange(event: Event) {
+  excludePickBox.value = (event.target as HTMLSelectElement).value
+}
+
+watch(activeExcludeBox, () => {
+  excludeKbIndex.value = -1
+  if (popoverOpen.value && (props.modelValue.mode === "notebook" || props.modelValue.mode === "all")) {
+    loadExcludeDocs()
+  }
+})
+
+watch(
+  [popoverOpen, () => props.modelValue.mode],
+  ([open, mode]) => {
+    if (open && (mode === "notebook" || mode === "all")) {
+      if (!excludePickBox.value) {
+        excludePickBox.value = props.modelValue.box ?? props.notebooks[0]?.id ?? ""
+      }
+      loadExcludeDocs()
+    }
+  },
+  { immediate: true },
+)
+
+const displayExcludeList = computed(() => {
+  return (props.modelValue.excludePaths ?? []).map((raw) => {
+    const parsed = parseExcludePath(
+      raw,
+      props.notebooks,
+      props.modelValue.mode === "notebook" ? props.modelValue.box : undefined,
+    )
+    return {
+      raw,
+      display: parsed.displayPath,
+    }
+  })
+})
+
 function removeExclude(path: string) {
-  patch({ excludePaths: excludeList.value.filter((p) => p !== path) })
+  patch({ excludePaths: (props.modelValue.excludePaths ?? []).filter((p) => p !== path) })
+}
+
+const filteredExcludeDocs = computed(() => {
+  const kw = normalizeKeyword(excludeDocFilter.value)
+  if (!kw) {
+    return excludeDocs.value
+  }
+  return excludeDocs.value.filter((doc) =>
+    doc.title.toLowerCase().includes(kw) || doc.hpath.toLowerCase().includes(kw),
+  )
+})
+
+const visibleExcludeDocs = computed(() => filteredExcludeDocs.value.slice(0, VISIBLE_DOC_CAP))
+
+function highlightExclude(text: string): string {
+  const kw = normalizeKeyword(excludeDocFilter.value)
+  const safe = escapeHtml(text)
+  if (!kw) {
+    return safe
+  }
+  const idx = text.toLowerCase().indexOf(kw)
+  if (idx < 0) {
+    return safe
+  }
+  const before = escapeHtml(text.slice(0, idx))
+  const hit = escapeHtml(text.slice(idx, idx + kw.length))
+  const after = escapeHtml(text.slice(idx + kw.length))
+  return `${before}<mark>${hit}</mark>${after}`
+}
+
+function isDocExcluded(doc: DocEntry): boolean {
+  const nbName = props.notebooks.find((nb) => nb.id === doc.box)?.name || ""
+  const fullPath = nbName ? `/${nbName}${doc.hpath}` : doc.hpath
+  const current = props.modelValue.excludePaths ?? []
+  return current.includes(fullPath) || current.includes(doc.hpath)
+}
+
+function pickExcludeDoc(doc: DocEntry) {
+  const nbName = props.notebooks.find((nb) => nb.id === doc.box)?.name || ""
+  const fullPath = nbName ? `/${nbName}${doc.hpath}` : doc.hpath
+  const current = props.modelValue.excludePaths ?? []
+  if (current.includes(fullPath) || current.includes(doc.hpath)) {
+    return
+  }
+  const merged = normalizeExcludePaths([...current, fullPath])
+  patch({ excludePaths: merged })
+  excludeDocFilter.value = ""
+}
+
+function moveExcludeKb(delta: number) {
+  if (visibleExcludeDocs.value.length === 0) {
+    return
+  }
+  const next = excludeKbIndex.value + delta
+  excludeKbIndex.value = Math.max(0, Math.min(next, visibleExcludeDocs.value.length - 1))
+}
+
+function confirmExcludeKb() {
+  if (excludeKbIndex.value >= 0 && visibleExcludeDocs.value[excludeKbIndex.value]) {
+    pickExcludeDoc(visibleExcludeDocs.value[excludeKbIndex.value])
+    return
+  }
+  const raw = excludeDocFilter.value.trim()
+  if (!raw) {
+    return
+  }
+  const activeBox = activeExcludeBox.value
+  const nbName = props.notebooks.find((nb) => nb.id === activeBox)?.name || ""
+  let pathToAdd = raw
+  if (nbName && !pathToAdd.startsWith(`/${nbName}/`) && pathToAdd !== `/${nbName}`) {
+    pathToAdd = pathToAdd.startsWith("/") ? `/${nbName}${pathToAdd}` : `/${nbName}/${pathToAdd}`
+  }
+  const merged = normalizeExcludePaths([...(props.modelValue.excludePaths ?? []), pathToAdd])
+  patch({ excludePaths: merged })
+  excludeDocFilter.value = ""
 }
 
 function onNotebookChange(event: Event) {
@@ -374,7 +582,7 @@ async function loadDocs() {
   }
   loadingDocs.value = true
   try {
-    docs.value = await listDocsOfNotebook(pickBox.value)
+    docs.value = await loadDocsForBox(pickBox.value)
   } catch {
     docs.value = []
   } finally {
@@ -391,10 +599,13 @@ watch(pickBox, () => {
   loadDocs()
 })
 
-// notebooks 由 App 异步加载，到达后补齐初始 pickBox
+// notebooks 由 App 异步加载，到达后补齐初始 pickBox 与 excludePickBox
 watch(() => props.notebooks.length, () => {
   if (!pickBox.value) {
     pickBox.value = props.modelValue.box ?? props.notebooks[0]?.id ?? ""
+  }
+  if (!excludePickBox.value) {
+    excludePickBox.value = props.modelValue.box ?? props.notebooks[0]?.id ?? ""
   }
 })
 
@@ -419,12 +630,14 @@ watch(popoverOpen, async (open) => {
     }
     await nextTick()
     filterRef.value?.focus()
+  } else if (props.modelValue.mode === "notebook" || props.modelValue.mode === "all") {
+    loadExcludeDocs()
   }
 })
 
-/** [[ / 【【 前缀仅是编辑器肌肉记忆，过滤时剥离 */
+/** 直接用关键词搜索过滤（支持大小写不敏感匹配） */
 function normalizeKeyword(input: string): string {
-  return input.replace(/^\s*(?:\[\[|【【)/, "").trim().toLowerCase()
+  return (input ?? "").trim().toLowerCase()
 }
 
 const filteredDocs = computed(() => {

@@ -26,7 +26,21 @@ export interface TaskCollection {
 
 /** 汇集任务：一次完整的取数周期 */
 export async function collectTasks(sel: ScopeSelection, limit: number): Promise<TaskCollection> {
-  const stmt = await buildTaskQuery({ selection: sel, limit })
+  const rawNotebooks: { id: string, name: string }[] = []
+  const notebookNames = new Map<string, string>()
+  try {
+    const result = await lsNotebooks()
+    for (const nb of result?.notebooks ?? []) {
+      if (!nb.closed) {
+        rawNotebooks.push({ id: nb.id, name: nb.name })
+        notebookNames.set(nb.id, nb.name)
+      }
+    }
+  } catch {
+    // 笔记本名获取失败时用 id 兜底展示
+  }
+
+  const stmt = await buildTaskQuery({ selection: sel, limit, notebooks: rawNotebooks })
   const { rows, truncated } = await queryTaskRows(stmt)
 
   // 同一列表块的任务必属同一文档
@@ -65,18 +79,6 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
     }
   })
 
-  const notebookNames = new Map<string, string>()
-  try {
-    const result = await lsNotebooks()
-    for (const nb of result?.notebooks ?? []) {
-      if (!nb.closed) {
-        notebookNames.set(nb.id, nb.name)
-      }
-    }
-  } catch {
-    // 笔记本名获取失败时用 id 兜底展示
-  }
-
   return {
     tasks,
     truncated: truncated || tasks.length >= limit,
@@ -105,16 +107,20 @@ export function filterTasks(
   })
 }
 
-/** 列表块簇内显示顺序：未完成在前，同状态按源顺序，再按块 id 兜底 */
-function sortListTasks(tasks: TaskItem[]): TaskItem[] {
-  return tasks.slice().sort((a, b) =>
-    Number(a.done) - Number(b.done)
-    || a.srcOrder - b.srcOrder
-    || a.id.localeCompare(b.id),
-  )
+/** 列表块簇内显示顺序：未完成在前（可选），同状态按源顺序，再按块 id 兜底 */
+function sortListTasks(tasks: TaskItem[], sortTodoFirst = false): TaskItem[] {
+  return tasks.slice().sort((a, b) => {
+    if (sortTodoFirst) {
+      const doneDiff = Number(a.done) - Number(b.done)
+      if (doneDiff !== 0) {
+        return doneDiff
+      }
+    }
+    return a.srcOrder - b.srcOrder || a.id.localeCompare(b.id)
+  })
 }
 
-function groupByList(tasks: TaskItem[]): TaskListGroup[] {
+function groupByList(tasks: TaskItem[], sortTodoFirst = false): TaskListGroup[] {
   const byList = new Map<string, TaskItem[]>()
   for (const task of tasks) {
     const arr = byList.get(task.parentId)
@@ -126,7 +132,7 @@ function groupByList(tasks: TaskItem[]): TaskListGroup[] {
   }
   const groups: TaskListGroup[] = []
   for (const [key, listTasks] of byList) {
-    const sorted = sortListTasks(listTasks)
+    const sorted = sortListTasks(listTasks, sortTodoFirst)
     groups.push({ key, tasks: sorted })
   }
   // 多个列表块之间按簇内最小源顺序稳定排列
@@ -165,18 +171,20 @@ function makeGroup(
   level: number,
   listGroups: TaskListGroup[],
   children: TaskGroup[],
-  extra?: { parentPath?: string, hpath?: string },
+  extra?: { parentPath?: string, hpath?: string, box?: string },
 ): TaskGroup {
   const { total, done } = countOf(listGroups, children)
   return { key, kind, title, level, listGroups, children, total, done, ...extra }
 }
 
-/** 分组组装选项：标题分组层的可见性 */
+/** 分组组装选项：标题分组层的可见性与任务排序规则 */
 export interface GroupingOptions {
   /** 是否以标题作为分组层；false 时任务平铺在文档分组下 */
   showHeadings: boolean
   /** 作为分组层展示的标题层级（1-6 子集） */
   headingLevels: number[]
+  /** 是否将未完成任务排在已完成任务前面（同列表块内） */
+  sortTodoFirst?: boolean
 }
 
 /** 组装分组树：笔记本 → 文档 → 标题树 → 列表块簇（纯函数，可随筛选重算） */
@@ -190,6 +198,7 @@ export function buildTaskGroups(
     return []
   }
   const showHeadings = opts.showHeadings ?? true
+  const sortTodoFirst = opts.sortTodoFirst ?? false
   const levels = new Set(
     opts.headingLevels && opts.headingLevels.length > 0
       ? opts.headingLevels
@@ -227,7 +236,7 @@ export function buildTaskGroups(
   for (const box of [...knownBoxes, ...unknownBoxes]) {
     const docs = byBox.get(box)!.sort((a, b) => a.hpath.localeCompare(b.hpath))
     const docGroups = docs.map((doc) =>
-      buildDocGroup(doc.rootId, doc.hpath, doc.tasks, untitledLabel, showHeadings, levels),
+      buildDocGroup(doc.rootId, box, doc.hpath, doc.tasks, untitledLabel, showHeadings, levels, sortTodoFirst),
     )
     groups.push(makeGroup(`nb:${box}`, "notebook", notebookNames.get(box) ?? box, 0, [], docGroups))
   }
@@ -245,17 +254,19 @@ function splitHpath(hpath: string): { parentPath: string, leaf: string } {
 
 function buildDocGroup(
   rootId: string,
+  box: string,
   hpath: string,
   tasks: TaskItem[],
   untitledLabel: string,
   showHeadings: boolean,
   levels: ReadonlySet<number>,
+  sortTodoFirst = false,
 ): TaskGroup {
   const { parentPath, leaf } = splitHpath(hpath)
   const title = leaf || untitledLabel
 
   if (!showHeadings) {
-    return makeGroup(`d:${rootId}`, "doc", title, 0, groupByList(tasks), [], { parentPath, hpath })
+    return makeGroup(`d:${rootId}`, "doc", title, 0, groupByList(tasks, sortTodoFirst), [], { parentPath, hpath, box })
   }
 
   // 每个 headingId -> 从文档级到自身的祖先链（任务路径天然覆盖全部相关标题）
@@ -335,11 +346,11 @@ function buildDocGroup(
       "heading",
       node.content || "…",
       node.level,
-      groupByList(byHeading.get(node.id) ?? []),
+      groupByList(byHeading.get(node.id) ?? [], sortTodoFirst),
       (childrenMap.get(node.id) ?? []).map(buildHeadingGroup),
     )
 
-  const docListGroups = groupByList(byHeading.get(null) ?? [])
+  const docListGroups = groupByList(byHeading.get(null) ?? [], sortTodoFirst)
   const headingChildren = roots.map(buildHeadingGroup)
-  return makeGroup(`d:${rootId}`, "doc", title, 0, docListGroups, headingChildren, { parentPath, hpath })
+  return makeGroup(`d:${rootId}`, "doc", title, 0, docListGroups, headingChildren, { parentPath, hpath, box })
 }

@@ -59,6 +59,8 @@ export interface TaskGroup {
   /** 分组种类：渲染层据此决定图标（doc）与 # 层级前缀（heading） */
   kind: "notebook" | "doc" | "heading"
   title: string
+  /** doc 档：所在笔记本 box id */
+  box?: string
   /** doc 档：去掉叶名后的可读父路径（如 "/传送目录"，根文档为空串） */
   parentPath?: string
   /** doc 档：完整可读路径（tooltip / aria-label 用） */

@@ -22,7 +22,10 @@
         class="tl-marker"
       >{{ displayMarker }}</span>
     </button>
-    <span class="tl-content">{{ task.content || "…" }}</span>
+    <span
+      class="tl-content"
+      v-html="renderedContent"
+    ></span>
     <span
       class="tl-jump ariaLabel"
       :aria-label="i18n.jump"
@@ -41,9 +44,10 @@ import type { TaskItem } from "@/data/types"
 import TlIcon from "@/components/_shared/TlIcon.vue"
 import { usePlugin } from "@/main"
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   task: TaskItem
-}>()
+  keyword?: string
+}>(), { keyword: "" })
 
 const emit = defineEmits<{
   toggle: [task: TaskItem]
@@ -51,6 +55,44 @@ const emit = defineEmits<{
 }>()
 
 const i18n = usePlugin().i18n
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function highlightText(text: string, kw?: string): string {
+  if (!text) {
+    return "…"
+  }
+  const trimmed = (kw ?? "").trim()
+  if (!trimmed) {
+    return escapeHtml(text)
+  }
+  const lower = text.toLowerCase()
+  const lowerKw = trimmed.toLowerCase()
+  let result = ""
+  let start = 0
+  let idx = lower.indexOf(lowerKw, start)
+  if (idx === -1) {
+    return escapeHtml(text)
+  }
+  while (idx !== -1) {
+    result += escapeHtml(text.slice(start, idx))
+    result += `<mark class="tl-highlight">${escapeHtml(text.slice(idx, idx + trimmed.length))}</mark>`
+    start = idx + trimmed.length
+    idx = lower.indexOf(lowerKw, start)
+  }
+  result += escapeHtml(text.slice(start))
+  return result
+}
+
+const renderedContent = computed(() =>
+  highlightText(props.task.content || "…", props.keyword),
+)
 
 /**
  * 自定义任务标记（/ - ! 等）渲染进勾选框内，与思源编辑器

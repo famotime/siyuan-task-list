@@ -43,10 +43,12 @@ function subdocPrefix(path: string): string {
 
 export const TASK_QUERY_COLUMNS = "id, parent_id, root_id, box, path, hpath, content, markdown, updated"
 
-interface ScopeContext {
+export interface ScopeContext {
   selection: ScopeSelection
   /** 语句外层 LIMIT（显式携带，避免内核 64 条默认截断） */
   limit: number
+  /** 笔记本列表（用于解析以笔记本名开头的排除路径） */
+  notebooks?: { id: string, name: string }[]
 }
 
 /** 解析出指定范围涉及的基准文档 id（activeDoc/path 档用于链接文档回溯） */
@@ -136,9 +138,23 @@ export async function buildTaskQuery(ctx: ScopeContext): Promise<string> {
 
   // 排除路径（notebook / all 档）：命中前缀的文档自身与子树一并排除
   if (sel.mode === "notebook" || sel.mode === "all") {
-    const excluded = normalizeExcludePaths(sel.excludePaths ?? [])
-    if (excluded.length > 0) {
-      predicate += ` AND ${excludePathPredicate(excluded)}`
+    const rawExcluded = normalizeExcludePaths(sel.excludePaths ?? [])
+    if (rawExcluded.length > 0) {
+      const nbs = ctx.notebooks ?? []
+      const fallbackBox = sel.mode === "notebook" ? sel.box : undefined
+      const conds: string[] = []
+      for (const raw of rawExcluded) {
+        const parsed = parseExcludePath(raw, nbs, fallbackBox)
+        const sub = `(hpath = '${esc(parsed.hpath)}' OR hpath LIKE '${esc(parsed.hpath)}/%')`
+        if (sel.mode === "all" && parsed.boxId) {
+          conds.push(`(box = '${esc(parsed.boxId)}' AND ${sub})`)
+        } else {
+          conds.push(sub)
+        }
+      }
+      if (conds.length > 0) {
+        predicate += ` AND NOT (${conds.join(" OR ")})`
+      }
     }
   }
 
@@ -147,6 +163,75 @@ export async function buildTaskQuery(ctx: ScopeContext): Promise<string> {
     `WHERE type='i' AND subtype='t' AND ${predicate} ` +
     `ORDER BY root_id, updated LIMIT ${limit}`
   )
+}
+
+export interface ParsedExcludePath {
+  /** 匹配到的笔记本 box id；未匹配任何已知笔记本时为 undefined（通配全部笔记本） */
+  boxId?: string
+  /** 笔记本内实际 hpath（以 / 开头） */
+  hpath: string
+  /** 规范的显示路径（从具体笔记本作为根目录显示，形如 /笔记本名/子路径） */
+  displayPath: string
+}
+
+/**
+ * 解析排除路径：支持前缀为笔记本名称的完整可读路径（形如 /笔记本名/文档路径）。
+ * 若未匹配笔记本名称且处于具体笔记本模式，则自动以 fallbackBoxId 对应的笔记本为根补齐显示路径。
+ */
+export function parseExcludePath(
+  rawPath: string,
+  notebooks: { id: string, name: string }[],
+  fallbackBoxId?: string,
+): ParsedExcludePath {
+  let p = (rawPath ?? "").trim()
+  if (!p) {
+    return { hpath: "/", displayPath: "/" }
+  }
+  if (!p.startsWith("/")) {
+    p = `/${p}`
+  }
+  while (p.length > 1 && p.endsWith("/")) {
+    p = p.slice(0, -1)
+  }
+
+  // 1. 检查是否以已知笔记本名称开头：/笔记本名/... 或 /笔记本名
+  for (const nb of notebooks) {
+    if (nb.name) {
+      const prefix = `/${nb.name}`
+      if (p === prefix) {
+        return {
+          boxId: nb.id,
+          hpath: "/",
+          displayPath: prefix,
+        }
+      }
+      if (p.startsWith(`${prefix}/`)) {
+        return {
+          boxId: nb.id,
+          hpath: p.slice(prefix.length),
+          displayPath: p,
+        }
+      }
+    }
+  }
+
+  // 2. 若未显式携带笔记本前缀，但处于单笔记本模式下，由当前笔记本作为根目录补全
+  if (fallbackBoxId) {
+    const matchedNb = notebooks.find((nb) => nb.id === fallbackBoxId)
+    if (matchedNb?.name) {
+      return {
+        boxId: fallbackBoxId,
+        hpath: p,
+        displayPath: `/${matchedNb.name}${p}`,
+      }
+    }
+  }
+
+  return {
+    boxId: undefined,
+    hpath: p,
+    displayPath: p,
+  }
 }
 
 /** 规范化排除路径：补前导 /、去尾部 /，丢弃空值与根路径，去重 */
@@ -169,12 +254,6 @@ export function normalizeExcludePaths(paths: string[]): string[] {
     out.push(p)
   }
   return out
-}
-
-/** 排除路径谓词：文档自身或位于其子树（hpath 前缀匹配）即排除 */
-function excludePathPredicate(paths: string[]): string {
-  const conds = paths.map((p) => `(hpath = '${esc(p)}' OR hpath LIKE '${esc(p)}/%')`)
-  return `NOT (${conds.join(" OR ")})`
 }
 
 export interface TaskRow {

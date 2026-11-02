@@ -1,6 +1,6 @@
 import type { TPluginDataChangeReason } from "siyuan"
 import type { ScopeSelection } from "@/data/types"
-import { Plugin, Setting, showMessage } from "siyuan"
+import { Plugin, Setting } from "siyuan"
 import { mountPanel, unmountPanel } from "@/main"
 import "@/index.scss"
 
@@ -27,6 +27,8 @@ export interface TaskListConfig {
   headingLevels: number[]
   /** 折叠的分组 key（notebook/doc/heading） */
   foldedKeys: string[]
+  /** 未完成任务排序靠前（同级列表块内） */
+  sortTodoFirst: boolean
 }
 
 const DEFAULT_CONFIG: TaskListConfig = {
@@ -35,10 +37,14 @@ const DEFAULT_CONFIG: TaskListConfig = {
   showHeadings: true,
   headingLevels: [1, 2, 3, 4, 5, 6],
   foldedKeys: [],
+  sortTodoFirst: false,
 }
 
 export default class TaskListPlugin extends Plugin {
   public config: TaskListConfig = { ...DEFAULT_CONFIG, scope: { ...DEFAULT_CONFIG.scope } }
+
+  /** 配置变更外部监听回调（设置对话框修改保存后通知 App 响应更新） */
+  public onConfigUpdated?: (config: TaskListConfig) => void
 
   /** 配置加载完成信号：面板挂载可能早于异步 onload 完成，初始刷新前需等待 */
   public readyPromise: Promise<void> = Promise.resolve()
@@ -85,6 +91,7 @@ export default class TaskListPlugin extends Plugin {
   async onDataChanged(_reason?: TPluginDataChangeReason): Promise<void> {
     const saved = await this.loadData(STORAGE_NAME).catch(() => null)
     this.applySavedConfig(saved)
+    this.onConfigUpdated?.(this.config)
   }
 
   private applySavedConfig(saved: any) {
@@ -107,6 +114,9 @@ export default class TaskListPlugin extends Plugin {
     if (saved && Array.isArray(saved.foldedKeys)) {
       this.config.foldedKeys = saved.foldedKeys.filter((key: any) => typeof key === "string")
     }
+    if (saved && typeof saved.sortTodoFirst === "boolean") {
+      this.config.sortTodoFirst = saved.sortTodoFirst
+    }
   }
 
   onunload() {
@@ -117,29 +127,41 @@ export default class TaskListPlugin extends Plugin {
   }
 
   openSetting() {
-    if (!this.settingDialog) {
-      this.initSetting()
-    }
+    this.initSetting()
     this.settingDialog!.open(this.name)
   }
 
   public async saveConfig() {
     await this.saveData(STORAGE_NAME, JSON.parse(JSON.stringify(this.config))).catch(() => {})
+    this.onConfigUpdated?.(this.config)
   }
 
   private initSetting() {
     const setting = new Setting({
       width: "600px",
-      height: "180px",
-      confirmCallback: () => {
-        this.saveConfig()
-        showMessage((this.i18n.saved as string) || "Settings saved")
+      height: "auto",
+      destroyCallback: () => {
+        this.settingDialog = null
+      },
+    })
+    setting.addItem({
+      title: (this.i18n.settingsSortTodoFirst as string) || "Sort open tasks first",
+      description: (this.i18n.settingsSortTodoFirstDesc as string) || "",
+      createActionElement: () => {
+        const switchEl = document.createElement("input")
+        switchEl.className = "b3-switch fn__flex-center"
+        switchEl.type = "checkbox"
+        switchEl.checked = Boolean(this.config.sortTodoFirst)
+        switchEl.addEventListener("change", () => {
+          this.config.sortTodoFirst = switchEl.checked
+          this.saveConfig()
+        })
+        return switchEl
       },
     })
     setting.addItem({
       title: (this.i18n.settingsLimit as string) || "Aggregation limit",
       description: (this.i18n.settingsLimitDesc as string) || "",
-      direction: "row",
       createActionElement: () => {
         const input = document.createElement("input")
         input.className = "b3-text-field fn__flex-center fn__size200"
@@ -152,6 +174,7 @@ export default class TaskListPlugin extends Plugin {
           const value = Number.parseInt(input.value, 10)
           if (Number.isFinite(value) && value >= 100) {
             this.config.limit = Math.min(value, 100000)
+            this.saveConfig()
           } else {
             input.value = String(this.config.limit)
           }

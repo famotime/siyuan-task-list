@@ -30,10 +30,6 @@
           class="tl-group__docicon"
         />
         <span
-          v-if="group.kind === 'heading'"
-          class="tl-hash"
-        >{{ '#'.repeat(group.level) }}</span>
-        <span
           class="tl-group__title"
           :class="titleClass(group)"
         >
@@ -73,6 +69,7 @@
             v-for="task in cluster.tasks"
             :key="task.id"
             :task="task"
+            :keyword="keyword"
             @toggle="emit('toggle', $event)"
             @jump="emit('jump', $event)"
           />
@@ -83,6 +80,7 @@
           :depth="depth + 1"
           :folded="folded"
           :can-exclude="canExclude"
+          :keyword="keyword"
           @toggle="emit('toggle', $event)"
           @jump="emit('jump', $event)"
           @toggle-fold="emit('toggleFold', $event)"
@@ -107,7 +105,9 @@ const props = withDefaults(defineProps<{
   depth?: number
   /** 是否显示文档级排除按钮：排除谓词仅在 notebook / all 档生效（App 计算） */
   canExclude?: boolean
-}>(), { depth: 0, canExclude: false })
+  /** 搜索关键字：透传至任务行进行命中内容强调色高亮 */
+  keyword?: string
+}>(), { depth: 0, canExclude: false, keyword: "" })
 
 const emit = defineEmits<{
   toggle: [task: TaskItem]
