@@ -212,26 +212,52 @@ const main = async () => {
     console.log('✅  package.json updated')
 
     console.log('🔄  \x1B[90m Ready to commit new version and create tag...\x1B[0m')
-    exec(
-      `git add ./plugin.json ./package.json ./CHANGELOG.md && git commit -m "chore(release): 升级版本至 v${newVersion}" && git push && git tag v${newVersion}`,
-      (err, stdout) => {
-        if (err) {
-          console.error('\x1B[31m%s\x1B[0m', '❌  Error for adding and committing:', err)
-          process.exit(1)
+    exec('git add ./plugin.json ./package.json ./CHANGELOG.md', (addErr) => {
+      if (addErr) {
+        console.error('\x1B[31m%s\x1B[0m', '❌  Error for git add:', addErr)
+        process.exit(1)
+      }
+
+      exec('git diff --staged --quiet', (diffErr) => {
+        const hasStagedChanges = Boolean(diffErr)
+
+        const proceedTag = () => {
+          console.log(`🔄  \x1B[90mCreating tag v${newVersion}...\x1B[0m`)
+          exec(`git tag v${newVersion}`, (tagErr) => {
+            if (tagErr) {
+              console.error('\x1B[31m%s\x1B[0m', '❌  Error for creating tag:', tagErr)
+              process.exit(1)
+            }
+            console.log('🔄  \x1B[90mTag Created, pushing...\x1B[0m')
+            exec(`git push origin v${newVersion}`, (pushErr) => {
+              if (pushErr) {
+                console.error('\x1B[31m%s\x1B[0m', '❌  Error for pushing tag:', pushErr)
+                process.exit(1)
+              }
+              console.log(`\n🎉  本地版本已成功同步: \x1B[32mv${newVersion}\x1B[0m`)
+              console.log(`🏷️   Tag \x1B[36mv${newVersion}\x1B[0m 已推送到远程仓库`)
+              console.log('🚀  GitHub Actions 将自动读取 CHANGELOG.md 内容并在云端打包发布 Release！\n')
+            })
+          })
         }
 
-        console.log('🔄  \x1B[90mTag Created, pushing...\x1B[0m')
-        exec(`git push origin v${newVersion}`, (err) => {
-          if (err) {
-            console.error('\x1B[31m%s\x1B[0m', '❌  Error for pushing tag:', err)
-            process.exit(1)
-          }
-          console.log(`\n🎉  本地版本已成功同步并提交: \x1B[32mv${newVersion}\x1B[0m`)
-          console.log(`🏷️   Tag \x1B[36mv${newVersion}\x1B[0m 已推送到远程仓库`)
-          console.log('🚀  GitHub Actions 将自动读取 CHANGELOG.md 内容并在云端打包发布 Release！\n')
-        })
-      },
-    )
+        if (hasStagedChanges) {
+          exec(
+            `git commit -m "chore(release): 升级版本至 v${newVersion}" && git push`,
+            (commitErr) => {
+              if (commitErr) {
+                console.error('\x1B[31m%s\x1B[0m', '❌  Error for committing and pushing:', commitErr)
+                process.exit(1)
+              }
+              proceedTag()
+            },
+          )
+        } else {
+          console.log('ℹ️   版本文件无变动，跳过 Commit，直接打 Tag 并推送...')
+          proceedTag()
+        }
+      })
+    })
 
   } catch (error) {
     console.error('\x1B[31m%s\x1B[0m', '❌  Error:', error)
