@@ -18,11 +18,11 @@
   ],
   "displayName": {
     "default": "Task List",
-    "zh_CN": "任务汇"
+    "zh_CN": "拾事"
   },
   "description": {
     "default": "Aggregate scattered task lists into a unified dock panel with flexible scoping, status filtering, and writeback.",
-    "zh_CN": "将分散在各文档中的任务列表汇集到统一 Dock 面板，支持多维范围筛选、树状归类与勾选直接写回。"
+    "zh_CN": "散落任务随手拾，归拢手边事事办。"
   },
   "readme": {
     "default": "README.md",
@@ -35,6 +35,7 @@
     "todo",
     "checklist",
     "aggregate",
-    "siyuan"
+    "siyuan",
+    "拾事"
   ]
 }
