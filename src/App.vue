@@ -83,6 +83,8 @@ import TlIcon from "@/components/_shared/TlIcon.vue"
 import { lsNotebooks, pushErrMsg, pushMsg, updateTaskListItemMarker } from "@/api"
 import { normalizeExcludePaths } from "@/data/scope"
 import { markerForStatus } from "@/data/status"
+import { isFavoriteMatching } from "@/utils/favorite"
+import { collectGroupKeys } from "@/utils/tree"
 import {
   buildTaskGroups,
   collectTasks,
@@ -382,15 +384,7 @@ function onToggleFold(key: string) {
  * - 若文档自身及所有子标题均处于展开态：全部折叠（将文档及所有子层级 key 全部写入 folded）
  */
 function onToggleFoldAll(group: TaskGroup) {
-  const allKeys = [group.key]
-  function walk(g: TaskGroup) {
-    for (const child of g.children) {
-      allKeys.push(child.key)
-      walk(child)
-    }
-  }
-  walk(group)
-
+  const allKeys = collectGroupKeys(group)
   const isExpanded = allKeys.every((k) => !folded.value.has(k))
   const next = new Set(folded.value)
   if (isExpanded) {
@@ -439,36 +433,14 @@ const isCurrentFavorited = computed(() => {
 })
 
 function matchesCurrentState(fav: PathFavorite): boolean {
-  if (fav.docId !== scope.value.docId) {
-    return false
-  }
-  if (Boolean(fav.includeSubdocs) !== Boolean(scope.value.includeSubdocs)) {
-    return false
-  }
-  if (Boolean(fav.includeLinked) !== Boolean(scope.value.includeLinked)) {
-    return false
-  }
-  if (fav.status !== statusFilter.value) {
-    return false
-  }
-  if (fav.showHeadings !== showHeadings.value) {
-    return false
-  }
-  if (!arraysEqual(fav.headingLevels, headingLevels.value)) {
-    return false
-  }
-  return true
-}
-
-function arraysEqual(a?: number[], b?: number[]): boolean {
-  const arrA = a ?? []
-  const arrB = b ?? []
-  if (arrA.length !== arrB.length) {
-    return false
-  }
-  const sortedA = [...arrA].sort((x, y) => x - y)
-  const sortedB = [...arrB].sort((x, y) => x - y)
-  return sortedA.every((val, idx) => val === sortedB[idx])
+  return isFavoriteMatching(fav, {
+    docId: scope.value.docId,
+    includeSubdocs: scope.value.includeSubdocs,
+    includeLinked: scope.value.includeLinked,
+    status: statusFilter.value,
+    showHeadings: showHeadings.value,
+    headingLevels: headingLevels.value,
+  })
 }
 
 function onToggleFavorite() {

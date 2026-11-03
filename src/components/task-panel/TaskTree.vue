@@ -117,6 +117,7 @@
 import type { TaskGroup, TaskItem } from "@/data/types"
 import TaskRow from "@/components/task-panel/TaskRow.vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
+import { collectGroupKeys } from "@/utils/tree"
 import { usePlugin } from "@/main"
 
 const props = withDefaults(defineProps<{
@@ -166,19 +167,6 @@ function canExcludeDoc(group: TaskGroup): boolean {
 /** 是否拥有悬浮操作栏 */
 function hasActions(group: TaskGroup): boolean {
   return canFoldAll(group) || canExcludeDoc(group)
-}
-
-/** 递归收集某分组自身及所有后代分组的 key */
-function collectGroupKeys(group: TaskGroup): string[] {
-  const keys: string[] = [group.key]
-  function walk(g: TaskGroup) {
-    for (const child of g.children) {
-      keys.push(child.key)
-      walk(child)
-    }
-  }
-  walk(group)
-  return keys
 }
 
 /** 判断该文档是否已完全展开（自身展开且下属所有标题层级皆展开） */

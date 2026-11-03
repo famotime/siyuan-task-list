@@ -43,6 +43,7 @@
 import { computed } from "vue"
 import type { TaskItem } from "@/data/types"
 import TlIcon from "@/components/_shared/TlIcon.vue"
+import { highlightText } from "@/utils/text"
 import { usePlugin } from "@/main"
 
 const props = withDefaults(defineProps<{
@@ -56,40 +57,6 @@ const emit = defineEmits<{
 }>()
 
 const i18n = usePlugin().i18n
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-}
-
-function highlightText(text: string, kw?: string): string {
-  if (!text) {
-    return "…"
-  }
-  const trimmed = (kw ?? "").trim()
-  if (!trimmed) {
-    return escapeHtml(text)
-  }
-  const lower = text.toLowerCase()
-  const lowerKw = trimmed.toLowerCase()
-  let result = ""
-  let start = 0
-  let idx = lower.indexOf(lowerKw, start)
-  if (idx === -1) {
-    return escapeHtml(text)
-  }
-  while (idx !== -1) {
-    result += escapeHtml(text.slice(start, idx))
-    result += `<mark class="tl-highlight">${escapeHtml(text.slice(idx, idx + trimmed.length))}</mark>`
-    start = idx + trimmed.length
-    idx = lower.indexOf(lowerKw, start)
-  }
-  result += escapeHtml(text.slice(start))
-  return result
-}
 
 const renderedContent = computed(() =>
   highlightText(props.task.content || "…", props.keyword),

@@ -1,8 +1,16 @@
 import type { TPluginDataChangeReason } from "siyuan"
-import type { PathFavorite, ScopeSelection } from "@/data/types"
 import { Plugin, Setting } from "siyuan"
+import {
+  DEFAULT_CONFIG,
+  DOCK_TYPE,
+  sanitizeConfig,
+  STORAGE_NAME,
+  type TaskListConfig,
+} from "@/config"
 import { mountPanel, unmountPanel } from "@/main"
 import "@/index.scss"
+
+export type { TaskListConfig } from "@/config"
 
 const CUSTOM_ICON_SVG = `<symbol id="iconTaskList" viewBox="0 0 1024 1024">
   <rect x="96" y="160" width="288" height="288" rx="48" fill="none" stroke="currentColor" stroke-width="72"/>
@@ -12,36 +20,6 @@ const CUSTOM_ICON_SVG = `<symbol id="iconTaskList" viewBox="0 0 1024 1024">
   <path fill="none" stroke="currentColor" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" d="M176 720l64 64 128-128"/>
   <rect x="512" y="632" width="416" height="80" rx="16" fill="none" stroke="currentColor" stroke-width="72"/>
 </symbol>`
-
-const STORAGE_NAME = "config.json"
-const DOCK_TYPE = "tasklist-dock"
-
-export interface TaskListConfig {
-  /** 单次汇集条数上限（同时作为查询 LIMIT，避免内核 search.limit=64 默认截断） */
-  limit: number
-  /** 上次使用的汇总范围 */
-  scope: ScopeSelection
-  /** 是否以标题作为分组层（false = 任务平铺到文档层） */
-  showHeadings: boolean
-  /** 作为分组层展示的标题层级（1-6 子集） */
-  headingLevels: number[]
-  /** 折叠的分组 key（notebook/doc/heading） */
-  foldedKeys: string[]
-  /** 未完成任务排序靠前（同级列表块内） */
-  sortTodoFirst: boolean
-  /** 常用路径与筛选条件收藏项（最多10项） */
-  favorites: PathFavorite[]
-}
-
-const DEFAULT_CONFIG: TaskListConfig = {
-  limit: 2000,
-  scope: { mode: "activeDoc", includeLinked: false },
-  showHeadings: true,
-  headingLevels: [1, 2, 3, 4, 5, 6],
-  foldedKeys: [],
-  sortTodoFirst: false,
-  favorites: [],
-}
 
 export default class TaskListPlugin extends Plugin {
   public config: TaskListConfig = { ...DEFAULT_CONFIG, scope: { ...DEFAULT_CONFIG.scope } }
@@ -80,7 +58,7 @@ export default class TaskListPlugin extends Plugin {
 
     this.readyPromise = (async () => {
       const saved = await this.loadData(STORAGE_NAME).catch(() => null)
-      this.applySavedConfig(saved)
+      this.config = sanitizeConfig(saved, this.config)
     })()
   }
 
@@ -93,38 +71,8 @@ export default class TaskListPlugin extends Plugin {
    */
   async onDataChanged(_reason?: TPluginDataChangeReason): Promise<void> {
     const saved = await this.loadData(STORAGE_NAME).catch(() => null)
-    this.applySavedConfig(saved)
+    this.config = sanitizeConfig(saved, this.config)
     this.onConfigUpdated?.(this.config)
-  }
-
-  private applySavedConfig(saved: any) {
-    if (saved && Number.isFinite(saved.limit) && saved.limit >= 100) {
-      this.config.limit = Math.min(saved.limit, 100000)
-    }
-    if (saved && saved.scope && saved.scope.mode) {
-      this.config.scope = { ...saved.scope }
-    }
-    if (saved && typeof saved.showHeadings === "boolean") {
-      this.config.showHeadings = saved.showHeadings
-    }
-    if (saved && Array.isArray(saved.headingLevels)) {
-      const levels = [...new Set<number>(saved.headingLevels)]
-        .filter((lvl) => Number.isInteger(lvl) && lvl >= 1 && lvl <= 6)
-      if (levels.length > 0) {
-        this.config.headingLevels = levels.sort((a, b) => a - b)
-      }
-    }
-    if (saved && Array.isArray(saved.foldedKeys)) {
-      this.config.foldedKeys = saved.foldedKeys.filter((key: any) => typeof key === "string")
-    }
-    if (saved && typeof saved.sortTodoFirst === "boolean") {
-      this.config.sortTodoFirst = saved.sortTodoFirst
-    }
-    if (saved && Array.isArray(saved.favorites)) {
-      this.config.favorites = saved.favorites
-        .filter((fav: any) => fav && typeof fav.id === "string" && typeof fav.docId === "string")
-        .slice(0, 10)
-    }
   }
 
   onunload() {

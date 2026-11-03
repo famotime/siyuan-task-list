@@ -75,7 +75,7 @@
           <select
             class="b3-select tl-scope-pop__select"
             :value="modelValue.box ?? ''"
-            @change="onNotebookChange($event as any)"
+            @change="patch({ box: ($event.target as HTMLSelectElement).value })"
           >
             <option
               v-for="nb in notebooks"
@@ -88,144 +88,23 @@
         </div>
 
         <template v-if="modelValue.mode === 'path'">
-          <div class="tl-scope-pop__sec tl-fav-sec">
-            <div class="tl-scope-pop__label tl-fav-label">
-              <span>{{ i18n.favoritesTitle || "常用收藏" }}</span>
-              <span class="tl-fav-count">{{ favorites?.length || 0 }}/10</span>
-            </div>
-            <div
-              v-if="favorites && favorites.length > 0"
-              class="tl-fav-list"
-            >
-              <div
-                v-for="fav in favorites"
-                :key="fav.id"
-                class="tl-fav-item"
-                :class="{ 'tl-fav-item--active': isItemActive(fav) }"
-              >
-                <div
-                  class="tl-fav-item__main"
-                  @click="pickFavorite(fav)"
-                >
-                  <div
-                    class="tl-fav-item__title"
-                    :title="fav.hpath"
-                  >
-                    {{ fav.title || hpathLeaf(fav.hpath) }}
-                  </div>
-                  <div class="tl-fav-item__tags">
-                    <span class="tl-fav-tag tl-fav-tag--status">
-                      {{ statusTagText(fav.status) }}
-                    </span>
-                    <span
-                      v-if="fav.includeSubdocs"
-                      class="tl-fav-tag"
-                    >
-                      {{ i18n.suffixSub || "＋子" }}
-                    </span>
-                    <span
-                      v-if="fav.includeLinked"
-                      class="tl-fav-tag"
-                    >
-                      {{ i18n.suffixLinked || "＋链" }}
-                    </span>
-                    <span
-                      v-if="!fav.showHeadings"
-                      class="tl-fav-tag"
-                    >
-                      {{ i18n.noHeadingsTag || "平铺" }}
-                    </span>
-                    <span
-                      v-else-if="fav.headingLevels && fav.headingLevels.length < 6"
-                      class="tl-fav-tag"
-                    >
-                      H{{ fav.headingLevels.join(',') }}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  class="tl-icon-btn tl-fav-item__del ariaLabel"
-                  :aria-label="i18n.removeFavorite || '删除该收藏'"
-                  @click.stop.prevent="emit('remove-favorite', fav.id)"
-                  @pointerdown.stop
-                  @mousedown.stop
-                >
-                  <TlIcon path="M18 6 6 18M6 6l12 12" />
-                </button>
-              </div>
-            </div>
-            <div
-              v-else
-              class="tl-fav-empty"
-            >
-              {{ i18n.noFavoritesHint || "暂无收藏，选中文档后点击下方按钮可收藏" }}
-            </div>
-          </div>
+          <FavoriteList
+            :favorites="favorites"
+            :match-state="currentMatchState"
+            @apply="pickFavorite"
+            @remove="emit('remove-favorite', $event)"
+          />
 
-          <div class="tl-scope-pop__sec">
-            <select
-              class="b3-select tl-scope-pop__select"
-              :value="pickBox"
-              @change="onPickBoxChange($event as any)"
-            >
-              <option
-                v-for="nb in notebooks"
-                :key="nb.id"
-                :value="nb.id"
-              >
-                {{ nb.name }}
-              </option>
-            </select>
-            <input
-              ref="filterRef"
-              v-model="docFilter"
-              class="b3-text-field tl-scope-pop__filter"
-              type="text"
-              :placeholder="i18n.filterDocPlaceholder"
-              @keydown.down.prevent="moveKb(1)"
-              @keydown.up.prevent="moveKb(-1)"
-              @keydown.enter.prevent="confirmKb"
-            >
-            <div class="tl-scope-pop__list">
-              <button
-                v-for="(doc, i) in visibleDocs"
-                :key="doc.id"
-                type="button"
-                class="tl-doc-item"
-                :class="{
-                  'tl-doc-item--active': doc.id === modelValue.docId,
-                  'tl-doc-item--kb': i === kbIndex,
-                }"
-                :style="{ paddingLeft: (8 + docDepth(doc) * 14) + 'px' }"
-                @click="pickDoc(doc)"
-                @mousemove="kbIndex = -1"
-              >
-                <TlIcon
-                  :path="FILE_TEXT_PATH"
-                  class="tl-doc-item__icon"
-                />
-                <span
-                  class="tl-doc-item__name"
-                  v-html="highlight(doc.title)"
-                ></span>
-                <span
-                  v-if="docParentOf(doc)"
-                  class="tl-doc-item__parent"
-                >{{ docParentOf(doc) }}</span>
-              </button>
-              <div
-                v-if="visibleDocs.length === 0 && !loadingDocs"
-                class="tl-scope-pop__empty"
-              >
-                {{ i18n.noMatchedDoc }}
-              </div>
-            </div>
-          </div>
+          <DocPicker
+            ref="docPickerRef"
+            :notebooks="notebooks"
+            :selected-doc-id="modelValue.docId"
+            :initial-box-id="modelValue.box"
+            @pick="pickDoc"
+            @change-box="patch({ box: $event })"
+          />
 
-          <label
-            class="tl-scope-pop__check"
-          >
+          <label class="tl-scope-pop__check">
             <input
               type="checkbox"
               :checked="modelValue.includeSubdocs ?? false"
@@ -234,9 +113,7 @@
             <span>{{ i18n.includeSubdocs }}</span>
           </label>
 
-          <label
-            class="tl-scope-pop__check"
-          >
+          <label class="tl-scope-pop__check">
             <input
               type="checkbox"
               :checked="modelValue.includeLinked ?? false"
@@ -277,115 +154,14 @@
           <span>{{ i18n.includeLinked }}</span>
         </label>
 
-        <div
+        <ExcludeManager
           v-if="modelValue.mode === 'notebook' || modelValue.mode === 'all'"
-          class="tl-scope-pop__sec"
-        >
-          <div class="tl-scope-pop__label">
-            {{ i18n.excludePathsLabel }}
-          </div>
-          <div
-            v-if="displayExcludeList.length"
-            class="tl-exclude-list"
-          >
-            <div
-              v-for="item in displayExcludeList"
-              :key="item.raw"
-              class="tl-exclude-row"
-            >
-              <span
-                class="tl-exclude-row__text"
-                :title="item.display"
-              >{{ item.display }}</span>
-              <button
-                type="button"
-                class="tl-icon-btn tl-exclude-row__remove ariaLabel"
-                :aria-label="i18n.removeExclude"
-                @click="removeExclude(item.raw)"
-              >
-                <TlIcon path="M18 6 6 18M6 6l12 12" />
-              </button>
-            </div>
-          </div>
-
-          <div class="tl-scope-pop__sec tl-exclude-picker">
-            <select
-              v-if="modelValue.mode === 'all'"
-              class="b3-select tl-scope-pop__select"
-              :value="excludePickBox"
-              @change="onExcludePickBoxChange($event as any)"
-            >
-              <option
-                v-for="nb in notebooks"
-                :key="nb.id"
-                :value="nb.id"
-              >
-                {{ nb.name }}
-              </option>
-            </select>
-            <div class="tl-exclude-add">
-              <input
-                ref="excludeFilterRef"
-                v-model="excludeDocFilter"
-                class="b3-text-field tl-scope-pop__filter"
-                type="text"
-                :placeholder="i18n.excludePathPlaceholder"
-                @keydown.down.prevent="moveExcludeKb(1)"
-                @keydown.up.prevent="moveExcludeKb(-1)"
-                @keydown.enter.prevent="confirmExcludeKb"
-              >
-              <button
-                type="button"
-                class="tl-icon-btn ariaLabel"
-                :aria-label="i18n.addExclude"
-                @click="confirmExcludeKb"
-              >
-                <TlIcon path="M12 5v14M5 12h14" />
-              </button>
-            </div>
-            <div
-              v-if="visibleExcludeDocs.length > 0 || (excludeDocFilter.trim() && !loadingExcludeDocs)"
-              class="tl-scope-pop__list tl-exclude-doc-list"
-            >
-              <button
-                v-for="(doc, i) in visibleExcludeDocs"
-                :key="doc.id"
-                type="button"
-                class="tl-doc-item"
-                :class="{
-                  'tl-doc-item--kb': i === excludeKbIndex,
-                  'tl-doc-item--excluded': isDocExcluded(doc),
-                }"
-                :style="{ paddingLeft: (8 + docDepth(doc) * 14) + 'px' }"
-                @click="pickExcludeDoc(doc)"
-                @mousemove="excludeKbIndex = -1"
-              >
-                <TlIcon
-                  :path="FILE_TEXT_PATH"
-                  class="tl-doc-item__icon"
-                />
-                <span
-                  class="tl-doc-item__name"
-                  v-html="highlightExclude(doc.title)"
-                ></span>
-                <span
-                  v-if="docParentOf(doc)"
-                  class="tl-doc-item__parent"
-                >{{ docParentOf(doc) }}</span>
-                <span
-                  v-if="isDocExcluded(doc)"
-                  class="tl-doc-item__badge"
-                >{{ i18n.docAlreadyExcluded || "已排除" }}</span>
-              </button>
-              <div
-                v-if="visibleExcludeDocs.length === 0 && !loadingExcludeDocs"
-                class="tl-scope-pop__empty"
-              >
-                {{ i18n.noMatchedDoc }}
-              </div>
-            </div>
-          </div>
-        </div>
+          :notebooks="notebooks"
+          :mode="modelValue.mode"
+          :exclude-paths="modelValue.excludePaths"
+          :current-box="modelValue.box"
+          @update:exclude-paths="patch({ excludePaths: $event })"
+        />
       </div>
     </TlPopover>
   </div>
@@ -395,8 +171,10 @@
 import { computed, nextTick, ref, watch } from "vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
 import TlPopover from "@/components/_shared/TlPopover.vue"
+import DocPicker from "@/components/task-panel/scope/DocPicker.vue"
+import ExcludeManager from "@/components/task-panel/scope/ExcludeManager.vue"
+import FavoriteList from "@/components/task-panel/scope/FavoriteList.vue"
 import { sql } from "@/api"
-import { listDocsOfNotebook, normalizeExcludePaths, parseExcludePath } from "@/data/scope"
 import type {
   DocEntry,
   PathFavorite,
@@ -404,6 +182,7 @@ import type {
   ScopeSelection,
   StatusFilter,
 } from "@/data/types"
+import type { FavoriteMatchState } from "@/utils/favorite"
 import { usePlugin } from "@/main"
 
 const FILE_TEXT_PATH = "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z M14 2v4a2 2 0 0 0 2 2h4 M16 13H8 M16 17H8 M10 9H8"
@@ -414,7 +193,6 @@ const STAR_PATH = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25
 const props = defineProps<{
   modelValue: ScopeSelection
   notebooks: { id: string, name: string }[]
-  /** activeDoc 档在查询时解析出的文档 id（用于摘要名回显） */
   resolvedDocId?: string
   favorites?: PathFavorite[]
   isFavorited?: boolean
@@ -435,7 +213,7 @@ const i18n = usePlugin().i18n
 
 const popoverOpen = ref(false)
 const chipRef = ref<HTMLElement | null>(null)
-const filterRef = ref<HTMLInputElement | null>(null)
+const docPickerRef = ref<InstanceType<typeof DocPicker> | null>(null)
 
 // ---------- 摘要 chip ----------
 
@@ -506,6 +284,15 @@ const showLinked = computed(() =>
   props.modelValue.mode === "path" || props.modelValue.mode === "activeDoc",
 )
 
+const currentMatchState = computed<FavoriteMatchState>(() => ({
+  docId: props.modelValue.docId,
+  includeSubdocs: props.modelValue.includeSubdocs,
+  includeLinked: props.modelValue.includeLinked,
+  status: props.statusFilter,
+  showHeadings: props.showHeadings,
+  headingLevels: props.headingLevels,
+}))
+
 function patch(part: Partial<ScopeSelection>) {
   emit("update:modelValue", { ...props.modelValue, ...part })
 }
@@ -516,7 +303,6 @@ function onModeChange(mode: ScopeMode) {
     box: mode === "notebook" || mode === "path" ? props.modelValue.box ?? props.notebooks[0]?.id : undefined,
     includeSubdocs: mode === "path" ? props.modelValue.includeSubdocs ?? false : undefined,
     includeLinked: mode === "path" || mode === "activeDoc" ? props.modelValue.includeLinked ?? false : undefined,
-    // 排除路径跨模式保留，切回 notebook/all 时无需重填
     excludePaths: props.modelValue.excludePaths,
   }
   if (mode === "path") {
@@ -527,315 +313,12 @@ function onModeChange(mode: ScopeMode) {
   emit("update:modelValue", next)
 }
 
-// ---------- 排除路径（notebook / all 档） ----------
-
-const excludeFilterRef = ref<HTMLInputElement | null>(null)
-const excludeDocFilter = ref("")
-const excludeKbIndex = ref(-1)
-const excludePickBox = ref(props.notebooks[0]?.id ?? "")
-const excludeDocs = ref<DocEntry[]>([])
-const loadingExcludeDocs = ref(false)
-
-const activeExcludeBox = computed(() => {
-  if (props.modelValue.mode === "notebook") {
-    return props.modelValue.box ?? props.notebooks[0]?.id ?? ""
-  }
-  return excludePickBox.value || props.notebooks[0]?.id || ""
-})
-
-const docsCache = new Map<string, DocEntry[]>()
-async function loadDocsForBox(boxId: string): Promise<DocEntry[]> {
-  if (!boxId) {
-    return []
-  }
-  if (docsCache.has(boxId)) {
-    return docsCache.get(boxId)!
-  }
-  const loaded = await listDocsOfNotebook(boxId)
-  docsCache.set(boxId, loaded)
-  return loaded
-}
-
-async function loadExcludeDocs() {
-  const box = activeExcludeBox.value
-  if (!box) {
-    excludeDocs.value = []
-    return
-  }
-  loadingExcludeDocs.value = true
-  try {
-    excludeDocs.value = await loadDocsForBox(box)
-  } catch {
-    excludeDocs.value = []
-  } finally {
-    loadingExcludeDocs.value = false
-  }
-}
-
-function onExcludePickBoxChange(event: Event) {
-  excludePickBox.value = (event.target as HTMLSelectElement).value
-}
-
-watch(activeExcludeBox, () => {
-  excludeKbIndex.value = -1
-  if (popoverOpen.value && (props.modelValue.mode === "notebook" || props.modelValue.mode === "all")) {
-    loadExcludeDocs()
-  }
-})
-
-watch(
-  [popoverOpen, () => props.modelValue.mode],
-  ([open, mode]) => {
-    if (open && (mode === "notebook" || mode === "all")) {
-      if (!excludePickBox.value) {
-        excludePickBox.value = props.modelValue.box ?? props.notebooks[0]?.id ?? ""
-      }
-      loadExcludeDocs()
-    }
-  },
-  { immediate: true },
-)
-
-const displayExcludeList = computed(() => {
-  return (props.modelValue.excludePaths ?? []).map((raw) => {
-    const parsed = parseExcludePath(
-      raw,
-      props.notebooks,
-      props.modelValue.mode === "notebook" ? props.modelValue.box : undefined,
-    )
-    return {
-      raw,
-      display: parsed.displayPath,
-    }
-  })
-})
-
-function removeExclude(path: string) {
-  patch({ excludePaths: (props.modelValue.excludePaths ?? []).filter((p) => p !== path) })
-}
-
-const filteredExcludeDocs = computed(() => {
-  const kw = normalizeKeyword(excludeDocFilter.value)
-  if (!kw) {
-    return excludeDocs.value
-  }
-  return excludeDocs.value.filter((doc) =>
-    doc.title.toLowerCase().includes(kw) || doc.hpath.toLowerCase().includes(kw),
-  )
-})
-
-const visibleExcludeDocs = computed(() => filteredExcludeDocs.value.slice(0, VISIBLE_DOC_CAP))
-
-function highlightExclude(text: string): string {
-  const kw = normalizeKeyword(excludeDocFilter.value)
-  const safe = escapeHtml(text)
-  if (!kw) {
-    return safe
-  }
-  const idx = text.toLowerCase().indexOf(kw)
-  if (idx < 0) {
-    return safe
-  }
-  const before = escapeHtml(text.slice(0, idx))
-  const hit = escapeHtml(text.slice(idx, idx + kw.length))
-  const after = escapeHtml(text.slice(idx + kw.length))
-  return `${before}<mark>${hit}</mark>${after}`
-}
-
-function isDocExcluded(doc: DocEntry): boolean {
-  const nbName = props.notebooks.find((nb) => nb.id === doc.box)?.name || ""
-  const fullPath = nbName ? `/${nbName}${doc.hpath}` : doc.hpath
-  const current = props.modelValue.excludePaths ?? []
-  return current.includes(fullPath) || current.includes(doc.hpath)
-}
-
-function pickExcludeDoc(doc: DocEntry) {
-  const nbName = props.notebooks.find((nb) => nb.id === doc.box)?.name || ""
-  const fullPath = nbName ? `/${nbName}${doc.hpath}` : doc.hpath
-  const current = props.modelValue.excludePaths ?? []
-  if (current.includes(fullPath) || current.includes(doc.hpath)) {
-    return
-  }
-  const merged = normalizeExcludePaths([...current, fullPath])
-  patch({ excludePaths: merged })
-  excludeDocFilter.value = ""
-}
-
-function moveExcludeKb(delta: number) {
-  if (visibleExcludeDocs.value.length === 0) {
-    return
-  }
-  const next = excludeKbIndex.value + delta
-  excludeKbIndex.value = Math.max(0, Math.min(next, visibleExcludeDocs.value.length - 1))
-}
-
-function confirmExcludeKb() {
-  if (excludeKbIndex.value >= 0 && visibleExcludeDocs.value[excludeKbIndex.value]) {
-    pickExcludeDoc(visibleExcludeDocs.value[excludeKbIndex.value])
-    return
-  }
-  const raw = excludeDocFilter.value.trim()
-  if (!raw) {
-    return
-  }
-  const activeBox = activeExcludeBox.value
-  const nbName = props.notebooks.find((nb) => nb.id === activeBox)?.name || ""
-  let pathToAdd = raw
-  if (nbName && !pathToAdd.startsWith(`/${nbName}/`) && pathToAdd !== `/${nbName}`) {
-    pathToAdd = pathToAdd.startsWith("/") ? `/${nbName}${pathToAdd}` : `/${nbName}/${pathToAdd}`
-  }
-  const merged = normalizeExcludePaths([...(props.modelValue.excludePaths ?? []), pathToAdd])
-  patch({ excludePaths: merged })
-  excludeDocFilter.value = ""
-}
-
-function onNotebookChange(event: Event) {
-  patch({ box: (event.target as HTMLSelectElement).value })
-}
-
-// ---------- 文档选择（path 档，内嵌于浮层） ----------
-
-const pickBox = ref(props.modelValue.box ?? props.notebooks[0]?.id ?? "")
-const docs = ref<DocEntry[]>([])
-const loadingDocs = ref(false)
-const docFilter = ref("")
-const kbIndex = ref(-1)
-
-async function loadDocs() {
-  if (!pickBox.value) {
-    docs.value = []
-    return
-  }
-  loadingDocs.value = true
-  try {
-    docs.value = await loadDocsForBox(pickBox.value)
-  } catch {
-    docs.value = []
-  } finally {
-    loadingDocs.value = false
-  }
-}
-
-function onPickBoxChange(event: Event) {
-  pickBox.value = (event.target as HTMLSelectElement).value
-}
-
-watch(pickBox, () => {
-  kbIndex.value = -1
-  loadDocs()
-})
-
-// notebooks 由 App 异步加载，到达后补齐初始 pickBox 与 excludePickBox
-watch(() => props.notebooks.length, () => {
-  if (!pickBox.value) {
-    pickBox.value = props.modelValue.box ?? props.notebooks[0]?.id ?? ""
-  }
-  if (!excludePickBox.value) {
-    excludePickBox.value = props.modelValue.box ?? props.notebooks[0]?.id ?? ""
-  }
-})
-
-// 浮层已开时切换到 path 档（含初始化）也要确保文档列表就绪
-watch(() => props.modelValue.mode, (mode) => {
-  if (popoverOpen.value && mode === "path") {
-    pickBox.value = props.modelValue.box ?? (pickBox.value || props.notebooks[0]?.id || "")
-    if (docs.value.length === 0) {
-      loadDocs()
-    }
-  }
-})
-
 watch(popoverOpen, async (open) => {
-  if (!open) {
-    return
-  }
-  if (props.modelValue.mode === "path") {
-    pickBox.value = props.modelValue.box ?? (pickBox.value || props.notebooks[0]?.id || "")
-    if (docs.value.length === 0) {
-      loadDocs()
-    }
+  if (open && props.modelValue.mode === "path") {
     await nextTick()
-    filterRef.value?.focus()
-  } else if (props.modelValue.mode === "notebook" || props.modelValue.mode === "all") {
-    loadExcludeDocs()
+    docPickerRef.value?.focus()
   }
 })
-
-/** 直接用关键词搜索过滤（支持大小写不敏感匹配） */
-function normalizeKeyword(input: string): string {
-  return (input ?? "").trim().toLowerCase()
-}
-
-const filteredDocs = computed(() => {
-  const kw = normalizeKeyword(docFilter.value)
-  if (!kw) {
-    return docs.value
-  }
-  return docs.value.filter((doc) =>
-    doc.title.toLowerCase().includes(kw) || doc.hpath.toLowerCase().includes(kw),
-  )
-})
-
-const VISIBLE_DOC_CAP = 300
-
-const visibleDocs = computed(() => filteredDocs.value.slice(0, VISIBLE_DOC_CAP))
-
-function docDepth(doc: DocEntry): number {
-  return Math.max(0, doc.hpath.split("/").filter(Boolean).length - 1)
-}
-
-function docParentOf(doc: DocEntry): string {
-  const segs = doc.hpath.replace(/^\/+/, "").split("/").filter(Boolean)
-  return segs.slice(0, -1).join(" / ")
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-}
-
-/** 命中关键字高亮（首处），其余按纯文本转义 */
-function highlight(text: string): string {
-  const kw = normalizeKeyword(docFilter.value)
-  const safe = escapeHtml(text)
-  if (!kw) {
-    return safe
-  }
-  const idx = text.toLowerCase().indexOf(kw)
-  if (idx < 0) {
-    return safe
-  }
-  const before = escapeHtml(text.slice(0, idx))
-  const hit = escapeHtml(text.slice(idx, idx + kw.length))
-  const after = escapeHtml(text.slice(idx + kw.length))
-  return `${before}<mark>${hit}</mark>${after}`
-}
-
-function moveKb(delta: number) {
-  if (visibleDocs.value.length === 0) {
-    return
-  }
-  const next = kbIndex.value + delta
-  kbIndex.value = Math.max(0, Math.min(next, visibleDocs.value.length - 1))
-  scrollKbIntoView()
-}
-
-function confirmKb() {
-  const doc = visibleDocs.value[kbIndex.value]
-  if (doc) {
-    pickDoc(doc)
-  }
-}
-
-function scrollKbIntoView() {
-  nextTick(() => {
-    const el = document.querySelector(".tl-doc-item--kb")
-    el?.scrollIntoView({ block: "nearest" })
-  })
-}
 
 function pickDoc(doc: DocEntry) {
   popoverOpen.value = false
@@ -849,52 +332,6 @@ function pickDoc(doc: DocEntry) {
     includeLinked: props.modelValue.includeLinked ?? false,
     excludePaths: props.modelValue.excludePaths,
   })
-}
-
-function isItemActive(fav: PathFavorite): boolean {
-  if (props.modelValue.mode !== "path") {
-    return false
-  }
-  if (props.modelValue.docId !== fav.docId) {
-    return false
-  }
-  if (Boolean(props.modelValue.includeSubdocs) !== Boolean(fav.includeSubdocs)) {
-    return false
-  }
-  if (Boolean(props.modelValue.includeLinked) !== Boolean(fav.includeLinked)) {
-    return false
-  }
-  if (props.statusFilter && fav.status !== props.statusFilter) {
-    return false
-  }
-  if (props.showHeadings !== undefined && fav.showHeadings !== props.showHeadings) {
-    return false
-  }
-  if (props.headingLevels && !arraysEqual(fav.headingLevels, props.headingLevels)) {
-    return false
-  }
-  return true
-}
-
-function arraysEqual(a?: number[], b?: number[]): boolean {
-  const arrA = a ?? []
-  const arrB = b ?? []
-  if (arrA.length !== arrB.length) {
-    return false
-  }
-  const sortedA = [...arrA].sort((x, y) => x - y)
-  const sortedB = [...arrB].sort((x, y) => x - y)
-  return sortedA.every((val, idx) => val === sortedB[idx])
-}
-
-function statusTagText(status?: StatusFilter): string {
-  if (status === "todo") {
-    return i18n.filterTodo || "未完成"
-  }
-  if (status === "done") {
-    return i18n.filterDone || "已完成"
-  }
-  return i18n.filterAll || "全部"
 }
 
 function pickFavorite(fav: PathFavorite) {

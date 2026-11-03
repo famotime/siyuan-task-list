@@ -100,6 +100,27 @@
 
 ---
 
+## 🛠️ 本地开发与测试
+
+```bash
+# 安装依赖
+pnpm install
+
+# 运行自动化单元测试（基于 Vitest）
+pnpm test
+
+# 执行 TypeScript 类型检查
+pnpm typecheck
+
+# 编译构建与产物完整性校验
+pnpm run build
+
+# 启动 Vite 热更新监听开发
+pnpm dev
+```
+
+---
+
 ## 💬 反馈与交流
 
 - **问题反馈与建议**：欢迎在 [GitHub Issues](https://github.com/famotime/siyuan-task-list/issues) 提交反馈与讨论。

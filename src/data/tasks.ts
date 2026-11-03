@@ -13,9 +13,10 @@ import type {
   TaskGroup,
   TaskItem,
   TaskListGroup,
+  StatusFilter,
 } from "@/data/types"
 
-export type StatusFilter = "all" | "todo" | "done"
+export type { StatusFilter } from "@/data/types"
 
 export interface TaskCollection {
   tasks: TaskItem[]
@@ -127,7 +128,7 @@ interface TaskTreeNode {
  * 2. 同一层级内重排序：开启 sortTodoFirst 时，同级内未完成优先，同状态保持文档源顺序；
  * 3. 深度优先遍历拍平，并赋予任务相对当前层级的子深度 subDepth（0 为顶级，1 为子级...）。
  */
-function buildAndSortTaskTree(taskList: TaskItem[], sortTodoFirst = false): TaskItem[] {
+export function buildAndSortTaskTree(taskList: TaskItem[], sortTodoFirst = false): TaskItem[] {
   if (taskList.length === 0) {
     return []
   }

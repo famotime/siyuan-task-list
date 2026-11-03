@@ -101,6 +101,27 @@ In SiYuan Note **Settings** → **Bazaar** / **Plugins** → **Task List (拾事
 
 ---
 
+## 🛠️ Development & Testing
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run automated unit tests with Vitest
+pnpm test
+
+# Run TypeScript type check
+pnpm typecheck
+
+# Build plugin and verify package integrity
+pnpm run build
+
+# Start live reload development mode
+pnpm dev
+```
+
+---
+
 ## 💬 Feedback & Community
 
 - **Issues & Suggestions**: Feel free to submit questions and feature requests on [GitHub Issues](https://github.com/famotime/siyuan-task-list/issues).

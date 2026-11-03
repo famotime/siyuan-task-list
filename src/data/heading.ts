@@ -12,6 +12,7 @@
  */
 import { getDocOutline, sql } from "@/api"
 import type { HeadingNode } from "@/data/types"
+import { stripHtml } from "@/utils/html"
 
 const IN_CHUNK = 400
 const MAX_DEPTH = 40
@@ -36,15 +37,9 @@ function chunk<T>(arr: T[], size = IN_CHUNK): T[][] {
   return ret
 }
 
-function levelOf(subtype: string): number {
+export function levelOf(subtype: string): number {
   const level = Number.parseInt((subtype ?? "").slice(1), 10)
   return Number.isFinite(level) && level >= 1 && level <= 6 ? level : 6
-}
-
-function stripHtml(html: string): string {
-  const div = document.createElement("div")
-  div.innerHTML = html ?? ""
-  return (div.textContent ?? "").trim()
 }
 
 async function fetchAncestors(ids: string[], memo: Map<string, AncestorRow>): Promise<void> {
