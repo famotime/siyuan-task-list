@@ -24,7 +24,7 @@
     />
     <div class="tl-body">
       <div
-        v-if="loading"
+        v-if="!collection && loading"
         class="tl-placeholder"
       >
         {{ i18n.loading }}
@@ -75,7 +75,6 @@
 </template>
 
 <script setup lang="ts">
-import type { IWebSocketData } from "siyuan"
 import { getActiveEditor, openTab } from "siyuan"
 import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import FilterBar from "@/components/task-panel/FilterBar.vue"
@@ -290,15 +289,6 @@ function flashBlock(model: any, blockId: string) {
   }, 100)
 }
 
-const WS_REFRESH_CMDS = new Set(["savedoc", "transactions", "rename"])
-
-function onWsMain(event: CustomEvent<IWebSocketData>) {
-  if (WS_REFRESH_CMDS.has(event.detail?.cmd)) {
-    // transactions 常伴索引重建，稍长防抖减少读过期索引
-    scheduleRefresh(1200)
-  }
-}
-
 function onSwitchProtyle(event: CustomEvent<any>) {
   if (scope.value.mode !== "activeDoc") {
     return
@@ -310,7 +300,6 @@ function onSwitchProtyle(event: CustomEvent<any>) {
 }
 
 onMounted(async () => {
-  plugin.eventBus.on("ws-main", onWsMain)
   plugin.eventBus.on("switch-protyle", onSwitchProtyle)
   // 监听插件设置保存通知，即时响应排序等首选项变更
   ;(plugin as any).onConfigUpdated = (cfg: any) => {
@@ -338,7 +327,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  plugin.eventBus.off("ws-main", onWsMain)
   plugin.eventBus.off("switch-protyle", onSwitchProtyle)
   if ((plugin as any).onConfigUpdated) {
     (plugin as any).onConfigUpdated = undefined
