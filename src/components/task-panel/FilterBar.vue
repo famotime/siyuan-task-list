@@ -26,7 +26,7 @@
       :aria-label="i18n.levelsLabel"
       @click="levelsOpen = !levelsOpen"
     >
-      <TlIcon path="M4 5h16M8 12h12M12 19h8" />
+      <TlIcon path="M6 12h12M6 20V4M18 20V4" />
     </button>
 
     <TlPopover

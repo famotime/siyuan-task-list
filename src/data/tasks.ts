@@ -2,12 +2,14 @@
  * 任务汇集与分组树组装。
  * 查询编排：范围谓词 → 任务主查询 → 标题归属解析 + 源顺序解析 → 组装视图模型。
  */
-import { lsNotebooks } from "@/api"
+import { lsNotebooks, sql } from "@/api"
 import { resolveHeadingPaths } from "@/data/heading"
 import { resolveDocBlockOrders } from "@/data/order"
 import { buildTaskQuery, queryTaskRows } from "@/data/scope"
 import { isTaskDone, parseTaskLine } from "@/data/status"
 import type {
+  DocMeta,
+  DocSortMode,
   HeadingNode,
   ScopeSelection,
   TaskGroup,
@@ -23,6 +25,39 @@ export interface TaskCollection {
   /** 服务端默认限制截断时为 true（显式 LIMIT 命中上限也视为截断） */
   truncated: boolean
   notebookNames: Map<string, string>
+  docMetas: Map<string, DocMeta>
+}
+
+/** 批量获取文档根块的元数据（标题、创建时间、更新时间） */
+export async function resolveDocMetas(docIds: string[]): Promise<Map<string, DocMeta>> {
+  const result = new Map<string, DocMeta>()
+  if (docIds.length === 0) {
+    return result
+  }
+  const chunks: string[][] = []
+  const CHUNK_SIZE = 400
+  for (let i = 0; i < docIds.length; i += CHUNK_SIZE) {
+    chunks.push(docIds.slice(i, i + CHUNK_SIZE))
+  }
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const inClause = chunk.map((id) => `'${id.replace(/'/g, "''")}'`).join(",")
+      const rows = await sql(
+        `SELECT id, content, created, updated FROM blocks WHERE id IN (${inClause}) AND type='d' LIMIT ${chunk.length}`,
+      )
+      for (const row of rows || []) {
+        result.set(row.id, {
+          id: row.id,
+          title: row.content || "",
+          created: row.created || "",
+          updated: row.updated || "",
+        })
+      }
+    }),
+  )
+
+  return result
 }
 
 /** 汇集任务：一次完整的取数周期 */
@@ -53,9 +88,10 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
     }
   }
 
-  const [headingRes, orderRes] = await Promise.all([
+  const [headingRes, orderRes, docMetas] = await Promise.all([
     resolveHeadingPaths(parentRootIds),
     resolveDocBlockOrders(docIds, [...parentRootIds.keys()]),
+    resolveDocMetas(docIds),
   ])
 
   const tasks: TaskItem[] = rows.map((row) => {
@@ -88,6 +124,7 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
     tasks,
     truncated: truncated || tasks.length >= limit,
     notebookNames,
+    docMetas,
   }
 }
 
@@ -212,6 +249,65 @@ export interface GroupingOptions {
   sortTodoFirst?: boolean
   /** 任务完成状态过滤（仅影响列表中展示的任务行与空分组剪枝，不影响 total/done 统计） */
   statusFilter?: StatusFilter
+  /** 文档排序规则（更新时间/创建时间/文件名 的正序或倒序） */
+  docSort?: DocSortMode
+  /** 文档元数据集合（标题、创建时间、更新时间） */
+  docMetas?: Map<string, DocMeta>
+}
+
+export interface DocSortEntry {
+  rootId: string
+  hpath: string
+  tasks: TaskItem[]
+}
+
+/**
+ * 依据选定排序模式对文档进行排序（纯函数，无 DOM 依赖）。
+ * 兜底采用稳定排序：时间或标题相同时按路径正序与 rootId 排序。
+ */
+export function sortDocEntries(
+  docs: DocSortEntry[],
+  sortMode: DocSortMode = "updated-desc",
+  docMetas?: Map<string, DocMeta>,
+): DocSortEntry[] {
+  return [...docs].sort((a, b) => {
+    const metaA = docMetas?.get(a.rootId)
+    const metaB = docMetas?.get(b.rootId)
+
+    const titleA = (metaA?.title || a.hpath.split("/").pop() || a.hpath).trim()
+    const titleB = (metaB?.title || b.hpath.split("/").pop() || b.hpath).trim()
+    const updatedA = metaA?.updated || ""
+    const updatedB = metaB?.updated || ""
+    const createdA = metaA?.created || ""
+    const createdB = metaB?.created || ""
+
+    let cmp = 0
+    switch (sortMode) {
+      case "updated-desc":
+        cmp = updatedB.localeCompare(updatedA)
+        break
+      case "updated-asc":
+        cmp = updatedA.localeCompare(updatedB)
+        break
+      case "created-desc":
+        cmp = createdB.localeCompare(createdA)
+        break
+      case "created-asc":
+        cmp = createdA.localeCompare(createdB)
+        break
+      case "title-asc":
+        cmp = titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: "base" })
+        break
+      case "title-desc":
+        cmp = titleB.localeCompare(titleA, undefined, { numeric: true, sensitivity: "base" })
+        break
+    }
+
+    if (cmp !== 0) {
+      return cmp
+    }
+    return a.hpath.localeCompare(b.hpath) || a.rootId.localeCompare(b.rootId)
+  })
 }
 
 /** 组装分组树：笔记本 → 文档 → 标题树 → 列表块簇（纯函数，可随筛选重算） */
@@ -260,9 +356,13 @@ export function buildTaskGroups(
   const knownBoxes = [...notebookNames.keys()].filter((box) => byBox.has(box))
   const unknownBoxes = [...byBox.keys()].filter((box) => !notebookNames.has(box))
 
+  const docSort = opts.docSort ?? "updated-desc"
+  const docMetas = opts.docMetas
+
   const groups: TaskGroup[] = []
   for (const box of [...knownBoxes, ...unknownBoxes]) {
-    const docs = byBox.get(box)!.sort((a, b) => a.hpath.localeCompare(b.hpath))
+    const rawDocs = byBox.get(box)!
+    const docs = sortDocEntries(rawDocs, docSort, docMetas)
     let nbTotal = 0
     let nbDone = 0
     const visibleDocGroups: TaskGroup[] = []

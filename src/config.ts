@@ -1,7 +1,7 @@
 /**
  * 插件配置定义与规范化校验。
  */
-import type { PathFavorite, ScopeSelection } from "@/data/types"
+import type { DocSortMode, PathFavorite, ScopeSelection } from "@/data/types"
 
 export const STORAGE_NAME = "config.json"
 export const DOCK_TYPE = "tasklist-dock"
@@ -19,6 +19,8 @@ export interface TaskListConfig {
   foldedKeys: string[]
   /** 未完成任务排序靠前（同级列表块内） */
   sortTodoFirst: boolean
+  /** 文档排序规则（更新时间/创建时间/文件名 的正序或倒序） */
+  docSort: DocSortMode
   /** 常用路径与筛选条件收藏项（最多10项） */
   favorites: PathFavorite[]
 }
@@ -30,6 +32,7 @@ export const DEFAULT_CONFIG: Readonly<TaskListConfig> = Object.freeze({
   headingLevels: [1, 2, 3, 4, 5, 6],
   foldedKeys: [],
   sortTodoFirst: false,
+  docSort: "updated-desc",
   favorites: [],
 })
 
@@ -80,6 +83,20 @@ export function sanitizeConfig(
 
   if (typeof saved.sortTodoFirst === "boolean") {
     result.sortTodoFirst = saved.sortTodoFirst
+  }
+
+  const VALID_DOC_SORTS: ReadonlySet<string> = new Set([
+    "updated-desc",
+    "updated-asc",
+    "created-desc",
+    "created-asc",
+    "title-asc",
+    "title-desc",
+  ])
+  if (typeof saved.docSort === "string" && VALID_DOC_SORTS.has(saved.docSort)) {
+    result.docSort = saved.docSort as DocSortMode
+  } else {
+    result.docSort = base.docSort ?? "updated-desc"
   }
 
   if (Array.isArray(saved.favorites)) {

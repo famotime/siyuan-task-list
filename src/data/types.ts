@@ -6,6 +6,23 @@
 /** 任务项完成状态（自定义标记 [/][-][!] 按"未完成"归组） */
 export type TaskStatus = "todo" | "done"
 
+/** 文档排列规则（更新时间/创建时间/文件名 的正序或倒序） */
+export type DocSortMode =
+  | "updated-desc"
+  | "updated-asc"
+  | "created-desc"
+  | "created-asc"
+  | "title-asc"
+  | "title-desc"
+
+/** 文档根块（.sy）基础元数据（用于排序） */
+export interface DocMeta {
+  id: string
+  title: string
+  created: string
+  updated: string
+}
+
 /** 标题树节点（文档内标题） */
 export interface HeadingNode {
   id: string

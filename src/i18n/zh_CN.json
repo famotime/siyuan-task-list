@@ -57,5 +57,12 @@
   "removeFavorite": "删除该收藏",
   "favActionFavorited": "已收藏当前条件（点击取消）",
   "noFavoritesHint": "暂无收藏，选中文档后点击下方按钮可收藏",
-  "groupCountTooltip": "未完成 ${todo} / 全部 ${total}"
+  "groupCountTooltip": "未完成 ${todo} / 全部 ${total}",
+  "docSort": "文档排序",
+  "sortUpdatedDesc": "更新时间：最新在前",
+  "sortUpdatedAsc": "更新时间：最早在前",
+  "sortCreatedDesc": "创建时间：最新在前",
+  "sortCreatedAsc": "创建时间：最早在前",
+  "sortTitleAsc": "文件名：正序 (A→Z)",
+  "sortTitleDesc": "文件名：倒序 (Z→A)"
 }

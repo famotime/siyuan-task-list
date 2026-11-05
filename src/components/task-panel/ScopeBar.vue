@@ -33,13 +33,50 @@
     </button>
     <span class="tl-scopebar__spacer"></span>
     <button
+      ref="sortBtnRef"
       type="button"
       class="tl-icon-btn ariaLabel"
+      :class="{ 'tl-icon-btn--active': sortOpen }"
+      :aria-label="i18n.docSort || '文档排序'"
+      @click="sortOpen = !sortOpen"
+    >
+      <TlIcon path="m3 16 4 4 4-4M7 20V4M11 4h10M11 8h7M11 12h4" />
+    </button>
+    <button
+      type="button"
+      class="tl-icon-btn tl-scopebar__refresh ariaLabel"
+      :class="{ 'tl-scopebar__refresh--spinning': loading }"
       :aria-label="i18n.refresh"
       @click="emit('refresh')"
     >
       <TlIcon path="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
     </button>
+
+    <TlPopover
+      :open="sortOpen"
+      :anchor="sortBtnRef"
+      :width="180"
+      align="right"
+      @close="sortOpen = false"
+    >
+      <div class="tl-sort-menu">
+        <button
+          v-for="opt in sortOptions"
+          :key="opt.value"
+          type="button"
+          class="tl-sort-menu__item"
+          :class="{ 'tl-sort-menu__item--active': (docSort || 'updated-desc') === opt.value }"
+          @click="selectSort(opt.value)"
+        >
+          <span class="tl-sort-menu__text">{{ opt.text }}</span>
+          <TlIcon
+            v-if="(docSort || 'updated-desc') === opt.value"
+            path="M20 6 9 17l-5-5"
+            class="tl-sort-menu__check"
+          />
+        </button>
+      </div>
+    </TlPopover>
 
     <TlPopover
       :open="popoverOpen"
@@ -177,6 +214,7 @@ import FavoriteList from "@/components/task-panel/scope/FavoriteList.vue"
 import { sql } from "@/api"
 import type {
   DocEntry,
+  DocSortMode,
   PathFavorite,
   ScopeMode,
   ScopeSelection,
@@ -199,10 +237,13 @@ const props = defineProps<{
   statusFilter?: StatusFilter
   showHeadings?: boolean
   headingLevels?: number[]
+  docSort?: DocSortMode
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: ScopeSelection]
+  'update:docSort': [value: DocSortMode]
   refresh: []
   'toggle-favorite': []
   'apply-favorite': [fav: PathFavorite]
@@ -212,8 +253,24 @@ const emit = defineEmits<{
 const i18n = usePlugin().i18n
 
 const popoverOpen = ref(false)
+const sortOpen = ref(false)
 const chipRef = ref<HTMLElement | null>(null)
+const sortBtnRef = ref<HTMLElement | null>(null)
 const docPickerRef = ref<InstanceType<typeof DocPicker> | null>(null)
+
+const sortOptions = computed(() => [
+  { value: "updated-desc" as const, text: i18n.sortUpdatedDesc || "更新时间：最新在前" },
+  { value: "updated-asc" as const, text: i18n.sortUpdatedAsc || "更新时间：最早在前" },
+  { value: "created-desc" as const, text: i18n.sortCreatedDesc || "创建时间：最新在前" },
+  { value: "created-asc" as const, text: i18n.sortCreatedAsc || "创建时间：最早在前" },
+  { value: "title-asc" as const, text: i18n.sortTitleAsc || "文件名：正序 (A→Z)" },
+  { value: "title-desc" as const, text: i18n.sortTitleDesc || "文件名：倒序 (Z→A)" },
+])
+
+function selectSort(mode: DocSortMode) {
+  emit("update:docSort", mode)
+  sortOpen.value = false
+}
 
 // ---------- 摘要 chip ----------
 

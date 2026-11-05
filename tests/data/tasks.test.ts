@@ -6,8 +6,9 @@ import {
   filterTasks,
   filterTasksByKeyword,
   filterTasksByStatus,
+  sortDocEntries,
 } from "@/data/tasks"
-import type { TaskItem } from "@/data/types"
+import type { DocMeta, TaskItem } from "@/data/types"
 import * as api from "@/api"
 import * as heading from "@/data/heading"
 import * as order from "@/data/order"
@@ -308,6 +309,54 @@ describe("src/data/tasks.ts", () => {
         marker: " ",
         srcOrder: 0,
       })
+    })
+  })
+
+  describe("sortDocEntries", () => {
+    const docEntries = [
+      { rootId: "doc-1", hpath: "/B-Doc", tasks: [] },
+      { rootId: "doc-2", hpath: "/A-Doc", tasks: [] },
+      { rootId: "doc-3", hpath: "/C-Doc", tasks: [] },
+    ]
+    const docMetas = new Map<string, DocMeta>([
+      ["doc-1", { id: "doc-1", title: "B Document", created: "20240101100000", updated: "20240103100000" }],
+      ["doc-2", { id: "doc-2", title: "A Document", created: "20240102100000", updated: "20240101100000" }],
+      ["doc-3", { id: "doc-3", title: "C Document", created: "20240103100000", updated: "20240102100000" }],
+    ])
+
+    it("should sort by updated descending", () => {
+      const sorted = sortDocEntries(docEntries, "updated-desc", docMetas)
+      expect(sorted.map((d) => d.rootId)).toEqual(["doc-1", "doc-3", "doc-2"])
+    })
+
+    it("should sort by updated ascending", () => {
+      const sorted = sortDocEntries(docEntries, "updated-asc", docMetas)
+      expect(sorted.map((d) => d.rootId)).toEqual(["doc-2", "doc-3", "doc-1"])
+    })
+
+    it("should sort by created descending", () => {
+      const sorted = sortDocEntries(docEntries, "created-desc", docMetas)
+      expect(sorted.map((d) => d.rootId)).toEqual(["doc-3", "doc-2", "doc-1"])
+    })
+
+    it("should sort by created ascending", () => {
+      const sorted = sortDocEntries(docEntries, "created-asc", docMetas)
+      expect(sorted.map((d) => d.rootId)).toEqual(["doc-1", "doc-2", "doc-3"])
+    })
+
+    it("should sort by title ascending", () => {
+      const sorted = sortDocEntries(docEntries, "title-asc", docMetas)
+      expect(sorted.map((d) => d.rootId)).toEqual(["doc-2", "doc-1", "doc-3"])
+    })
+
+    it("should sort by title descending", () => {
+      const sorted = sortDocEntries(docEntries, "title-desc", docMetas)
+      expect(sorted.map((d) => d.rootId)).toEqual(["doc-3", "doc-1", "doc-2"])
+    })
+
+    it("should fallback to hpath when docMetas is absent", () => {
+      const sorted = sortDocEntries(docEntries, "title-asc", undefined)
+      expect(sorted.map((d) => d.rootId)).toEqual(["doc-2", "doc-1", "doc-3"])
     })
   })
 })

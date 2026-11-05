@@ -2,6 +2,8 @@
   <div class="tl-panel">
     <ScopeBar
       v-model="scope"
+      v-model:doc-sort="docSort"
+      :loading="loading"
       :notebooks="notebooks"
       :resolved-doc-id="resolvedDocId"
       :favorites="favorites"
@@ -93,6 +95,7 @@ import {
   type TaskCollection,
 } from "@/data/tasks"
 import type {
+  DocSortMode,
   PathFavorite,
   ScopeSelection,
   TaskGroup,
@@ -115,12 +118,13 @@ const truncated = ref(false)
 /** 当前文档档解析出的文档 id（用于 switch-protyle 变更检测与范围摘要回显） */
 const resolvedDocId = ref<string>("")
 
-// ---------- 视图状态（标题分组层级 + 折叠态，持久化到插件 config） ----------
+// ---------- 视图状态（标题分组层级 + 折叠态 + 文档排序，持久化到插件 config） ----------
 
 const showHeadings = ref(true)
 const headingLevels = ref<number[]>([1, 2, 3, 4, 5, 6])
 const folded = ref(new Set<string>())
 const sortTodoFirst = ref(plugin.config.sortTodoFirst ?? false)
+const docSort = ref<DocSortMode>(plugin.config.docSort ?? "updated-desc")
 
 const groups = computed<TaskGroup[]>(() => {
   if (!collection.value) {
@@ -132,6 +136,8 @@ const groups = computed<TaskGroup[]>(() => {
     headingLevels: headingLevels.value,
     sortTodoFirst: sortTodoFirst.value,
     statusFilter: statusFilter.value,
+    docSort: docSort.value,
+    docMetas: collection.value.docMetas,
   })
 })
 
@@ -356,14 +362,15 @@ watch(scope, () => {
   }, 800)
 }, { deep: true })
 
-// 视图状态（标题层级开关 / 折叠态）改动：防抖持久化。三个 ref 均以整体替换
+// 视图状态（标题层级开关 / 折叠态 / 文档排序）改动：防抖持久化。几个 ref 均以整体替换
 // 方式更新（折叠态每次生成新 Set），plain watch 即可感知
-watch([showHeadings, headingLevels, folded], () => {
+watch([showHeadings, headingLevels, folded, docSort], () => {
   clearTimeout(viewSaveTimer)
   viewSaveTimer = setTimeout(() => {
     plugin.config.showHeadings = showHeadings.value
     plugin.config.headingLevels = [...headingLevels.value]
     plugin.config.foldedKeys = [...folded.value]
+    plugin.config.docSort = docSort.value
     plugin.saveConfig()
   }, 600)
 })

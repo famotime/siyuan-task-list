@@ -57,5 +57,12 @@
   "removeFavorite": "Remove favorite",
   "favActionFavorited": "Favorited (click to unfavorite)",
   "noFavoritesHint": "No favorites yet. Pick a doc and click below to add.",
-  "groupCountTooltip": "${todo} uncompleted / ${total} total"
+  "groupCountTooltip": "${todo} uncompleted / ${total} total",
+  "docSort": "Sort documents",
+  "sortUpdatedDesc": "Updated: Newest first",
+  "sortUpdatedAsc": "Updated: Oldest first",
+  "sortCreatedDesc": "Created: Newest first",
+  "sortCreatedAsc": "Created: Oldest first",
+  "sortTitleAsc": "File name: A to Z",
+  "sortTitleDesc": "File name: Z to A"
 }

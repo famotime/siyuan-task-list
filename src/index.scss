@@ -120,6 +120,70 @@
   }
 }
 
+.tl-scopebar__refresh {
+  color: var(--b3-theme-primary);
+
+  &:hover {
+    background-color: var(--b3-theme-primary-lightest);
+    color: var(--b3-theme-primary);
+  }
+
+  &--spinning {
+    .tl-icon {
+      animation: tl-spin 0.6s linear infinite;
+    }
+  }
+}
+
+.tl-sort-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.tl-sort-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: var(--b3-border-radius);
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background-color: var(--b3-list-hover);
+    color: var(--b3-theme-on-background);
+  }
+
+  &--active {
+    color: var(--b3-theme-primary);
+    font-weight: 500;
+  }
+}
+
+.tl-sort-menu__text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-sort-menu__check {
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  flex-shrink: 0;
+  color: var(--b3-theme-primary);
+}
+
 .tl-chip {
   display: inline-flex;
   align-items: center;
@@ -1033,6 +1097,16 @@
 .tl-jump__icon {
   width: 13px;
   height: 13px;
+}
+
+// ---------- 旋转动画 ----------
+@keyframes tl-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 // ---------- 跳转定位闪烁 ----------

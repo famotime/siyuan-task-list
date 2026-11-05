@@ -70,12 +70,19 @@ describe("src/config.ts", () => {
         showHeadings: false,
         sortTodoFirst: true,
         foldedKeys: ["k1", "k2", 123 as any],
+        docSort: "title-desc",
       })
       expect(config.scope.mode).toBe("notebook")
       expect(config.scope.box).toBe("nb-1")
       expect(config.showHeadings).toBe(false)
       expect(config.sortTodoFirst).toBe(true)
       expect(config.foldedKeys).toEqual(["k1", "k2"])
+      expect(config.docSort).toBe("title-desc")
+    })
+
+    it("should fallback docSort to default when invalid", () => {
+      expect(sanitizeConfig({ docSort: "unknown-sort" }).docSort).toBe("updated-desc")
+      expect(sanitizeConfig({ docSort: 123 as any }).docSort).toBe("updated-desc")
     })
   })
 })
