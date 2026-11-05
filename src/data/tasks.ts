@@ -128,13 +128,24 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
   }
 }
 
-/** 搜索过滤：仅按内容关键字过滤 */
+/** 搜索过滤：支持任务内容、文档名称与路径、祖先标题名称 */
 export function filterTasksByKeyword(tasks: TaskItem[], keyword: string): TaskItem[] {
   const kw = keyword.trim().toLowerCase()
   if (!kw) {
     return tasks
   }
-  return tasks.filter((task) => task.content.toLowerCase().includes(kw))
+  return tasks.filter((task) => {
+    if (task.content.toLowerCase().includes(kw)) {
+      return true
+    }
+    if (task.hpath && task.hpath.toLowerCase().includes(kw)) {
+      return true
+    }
+    if (task.headingPath && task.headingPath.some((h) => h.content.toLowerCase().includes(kw))) {
+      return true
+    }
+    return false
+  })
 }
 
 /** 状态过滤：仅按完成状态过滤 */

@@ -20,6 +20,8 @@
         >
           <div
             class="tl-fav-item__title"
+            :class="{ 'ariaLabel': Boolean(fav.hpath) }"
+            :aria-label="fav.hpath"
             :title="fav.hpath"
           >
             {{ fav.title || hpathLeaf(fav.hpath) }}

@@ -30,7 +30,7 @@
   "filterAll": "全部",
   "filterTodo": "未完成",
   "filterDone": "已完成",
-  "searchPlaceholder": "搜索任务内容",
+  "searchPlaceholder": "搜索内容",
   "empty": "没有任务",
   "emptyHint": "当前范围下没有找到任务列表",
   "truncated": "结果已达上限 ${n} 条，可能未完全展示，可在插件设置中调高上限",

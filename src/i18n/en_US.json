@@ -30,7 +30,7 @@
   "filterAll": "All",
   "filterTodo": "Open",
   "filterDone": "Done",
-  "searchPlaceholder": "Search tasks",
+  "searchPlaceholder": "Search content",
   "empty": "No tasks",
   "emptyHint": "No task list found in the current scope",
   "truncated": "Reached the limit of ${n} tasks; results may be incomplete. Raise the limit in plugin settings.",

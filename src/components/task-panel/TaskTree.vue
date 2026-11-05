@@ -32,12 +32,13 @@
         />
         <span
           class="tl-group__title"
-          :class="titleClass(group)"
+          :class="[
+            titleClass(group),
+            { 'ariaLabel': group.kind === 'doc' && group.hpath },
+          ]"
+          :aria-label="group.kind === 'doc' ? group.hpath : undefined"
         >
-          <span
-            v-if="group.kind === 'doc' && group.parentPath"
-            class="tl-group__parent"
-          >{{ group.parentPath }} / </span><span>{{ group.title }}</span>
+          <span v-html="renderGroupTitle(group)"></span>
         </span>
         <span
           class="tl-pill"
@@ -117,6 +118,7 @@
 import type { TaskGroup, TaskItem } from "@/data/types"
 import TaskRow from "@/components/task-panel/TaskRow.vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
+import { escapeHtml, highlightText } from "@/utils/text"
 import { collectGroupKeys } from "@/utils/tree"
 import { usePlugin } from "@/main"
 
@@ -194,5 +196,12 @@ function pillText(group: TaskGroup): string {
     return (i18n.headingPill || "${n}级标题").replace("${n}", String(group.level))
   }
   return i18n.pillNotebook || "Notebook"
+}
+
+function renderGroupTitle(group: TaskGroup): string {
+  if (group.kind === "doc" || group.kind === "heading") {
+    return highlightText(group.title, props.keyword)
+  }
+  return escapeHtml(group.title)
 }
 </script>

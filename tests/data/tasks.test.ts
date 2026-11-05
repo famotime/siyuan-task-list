@@ -63,6 +63,39 @@ describe("src/data/tasks.ts", () => {
       expect(filterTasksByKeyword(tasks, "nonexistent")).toHaveLength(0)
     })
 
+    it("filterTasksByKeyword should match document path or heading content", () => {
+      const complexTasks: TaskItem[] = [
+        createMockTask({
+          id: "t1",
+          content: "Clean desk",
+          hpath: "/Work/ProjectAlpha",
+          headingPath: [{ id: "h1", content: "Architecture Plan", level: 1, parentId: null, order: 0 }],
+        }),
+        createMockTask({
+          id: "t2",
+          content: "Write code",
+          hpath: "/Personal/Diary",
+          headingPath: [{ id: "h2", content: "Daily Notes", level: 2, parentId: null, order: 0 }],
+        }),
+      ]
+
+      // 匹配任务内容
+      expect(filterTasksByKeyword(complexTasks, "desk")).toHaveLength(1)
+      expect(filterTasksByKeyword(complexTasks, "desk")[0].id).toBe("t1")
+
+      // 匹配文档名或文档路径
+      expect(filterTasksByKeyword(complexTasks, "ProjectAlpha")).toHaveLength(1)
+      expect(filterTasksByKeyword(complexTasks, "ProjectAlpha")[0].id).toBe("t1")
+      expect(filterTasksByKeyword(complexTasks, "personal")).toHaveLength(1)
+      expect(filterTasksByKeyword(complexTasks, "personal")[0].id).toBe("t2")
+
+      // 匹配祖先标题名称
+      expect(filterTasksByKeyword(complexTasks, "Architecture")).toHaveLength(1)
+      expect(filterTasksByKeyword(complexTasks, "Architecture")[0].id).toBe("t1")
+      expect(filterTasksByKeyword(complexTasks, "Daily")).toHaveLength(1)
+      expect(filterTasksByKeyword(complexTasks, "Daily")[0].id).toBe("t2")
+    })
+
     it("filterTasksByStatus should filter correctly", () => {
       expect(filterTasksByStatus(tasks, "all")).toHaveLength(3)
       expect(filterTasksByStatus(tasks, "todo")).toHaveLength(2)

@@ -4,6 +4,8 @@
       ref="chipRef"
       type="button"
       class="tl-chip"
+      :class="{ 'ariaLabel': modelValue.mode === 'path' && Boolean(modelValue.hpath) }"
+      :aria-label="modelValue.mode === 'path' ? modelValue.hpath : undefined"
       @click="popoverOpen = !popoverOpen"
     >
       <TlIcon
