@@ -8,6 +8,7 @@ import {
   type TaskListConfig,
 } from "@/config"
 import { mountPanel, unmountPanel } from "@/main"
+import { pushErrMsg } from "@/api"
 import "@/index.scss"
 
 export type { TaskListConfig } from "@/config"
@@ -79,6 +80,24 @@ export default class TaskListPlugin extends Plugin {
     if (this.settingDialog) {
       // Setting 无 destroy 方法，元素随对话框关闭移除；这里仅释放引用
       this.settingDialog = null
+    }
+  }
+
+  /**
+   * 仅在插件被卸载时触发：清理持久化配置，避免卸载后残留。
+   * 注意 removeData 严禁移入 onunload —— 禁用插件或思源关闭时也会触发 onunload，
+   * 在那里删数据会导致用户设置丢失。
+   */
+  async uninstall() {
+    try {
+      await this.removeData(STORAGE_NAME)
+    } catch (e) {
+      pushErrMsg(
+        ((this.i18n.uninstallDataRemoveFailed as string) || "Failed to remove plugin data of ${name} on uninstall: ${error}")
+          .replace("${name}", this.name)
+          .replace("${error}", String(e)),
+        4000,
+      )
     }
   }
 

@@ -415,7 +415,6 @@ function onExcludeDoc(group: TaskGroup) {
     ...scope.value,
     excludePaths: normalizeExcludePaths([...(scope.value.excludePaths ?? []), fullPath]),
   }
-  pushMsg((i18n.docExcluded || "已排除「${doc}」及其子文档的任务").replace("${doc}", group.title), 4000)
 }
 
 // ---------- 常用路径收藏 ----------
@@ -448,7 +447,6 @@ function onToggleFavorite() {
     favorites.value = [...favorites.value]
     plugin.config.favorites = [...favorites.value]
     plugin.saveConfig()
-    pushMsg(i18n.favoriteRemoved || "已取消收藏")
     return
   }
   if (favorites.value.length >= 10) {
@@ -473,7 +471,6 @@ function onToggleFavorite() {
   favorites.value = [newFav, ...favorites.value]
   plugin.config.favorites = [...favorites.value]
   plugin.saveConfig()
-  pushMsg(i18n.favoriteAdded || "已添加到常用收藏")
 }
 
 function onApplyFavorite(fav: PathFavorite) {
@@ -496,6 +493,5 @@ function onRemoveFavorite(favId: string) {
   favorites.value = favorites.value.filter((f) => f.id !== favId)
   plugin.config.favorites = [...favorites.value]
   plugin.saveConfig()
-  pushMsg(i18n.favoriteRemoved || "已取消收藏")
 }
 </script>
