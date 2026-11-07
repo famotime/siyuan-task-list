@@ -96,6 +96,40 @@ describe("src/data/tasks.ts", () => {
       expect(filterTasksByKeyword(complexTasks, "Daily")[0].id).toBe("t2")
     })
 
+    it("filterTasksByKeyword should keep descendants of matched tasks", () => {
+      const tree: TaskItem[] = [
+        createMockTask({ id: "p1", content: "导航栏设计", parentTaskId: null }),
+        createMockTask({ id: "c1", content: "移动端折叠菜单", done: true, parentTaskId: "p1" }),
+        createMockTask({ id: "c2", content: "桌面端多级下拉", parentTaskId: "p1" }),
+        createMockTask({ id: "g1", content: "动效细节打磨", parentTaskId: "c2" }),
+        createMockTask({ id: "x1", content: "无关任务", parentTaskId: null }),
+        createMockTask({ id: "x2", content: "无关子任务", parentTaskId: "x1" }),
+      ]
+
+      // 命中父任务时，未命中关键词的嵌套子任务（含孙级）随父保留
+      const kept = filterTasksByKeyword(tree, "设计")
+      expect(kept.map((t) => t.id)).toEqual(["p1", "c1", "c2", "g1"])
+
+      // 命中与保留的子任务保持源数组相对顺序
+      expect(kept.map((t) => t.content)).toEqual([
+        "导航栏设计",
+        "移动端折叠菜单",
+        "桌面端多级下拉",
+        "动效细节打磨",
+      ])
+    })
+
+    it("filterTasksByKeyword should not backtrack to ancestors of matched children", () => {
+      const tree: TaskItem[] = [
+        createMockTask({ id: "p1", content: "重构列表组件", parentTaskId: null }),
+        createMockTask({ id: "c1", content: "折叠菜单设计", parentTaskId: "p1" }),
+        createMockTask({ id: "s1", content: "无关任务", parentTaskId: null }),
+      ]
+
+      // 子任务自身命中时仅保留该子任务，父任务与兄弟分支不出现
+      expect(filterTasksByKeyword(tree, "设计").map((t) => t.id)).toEqual(["c1"])
+    })
+
     it("filterTasksByStatus should filter correctly", () => {
       expect(filterTasksByStatus(tasks, "all")).toHaveLength(3)
       expect(filterTasksByStatus(tasks, "todo")).toHaveLength(2)
@@ -106,6 +140,18 @@ describe("src/data/tasks.ts", () => {
       expect(filterTasks(tasks, "todo", "buy")).toHaveLength(1)
       expect(filterTasks(tasks, "done", "buy")).toHaveLength(1)
       expect(filterTasks(tasks, "done", "milk")).toHaveLength(0)
+    })
+
+    it("filterTasks should apply status filter to retained descendants", () => {
+      const tree: TaskItem[] = [
+        createMockTask({ id: "p1", content: "导航栏设计", parentTaskId: null }),
+        createMockTask({ id: "c1", content: "移动端折叠菜单", done: true, parentTaskId: "p1" }),
+        createMockTask({ id: "c2", content: "桌面端多级下拉", parentTaskId: "p1" }),
+      ]
+
+      // 状态筛选照常作用于随父保留的后代：未完成下隐藏已完成子任务
+      expect(filterTasks(tree, "todo", "设计").map((t) => t.id)).toEqual(["p1", "c2"])
+      expect(filterTasks(tree, "done", "设计").map((t) => t.id)).toEqual(["c1"])
     })
   })
 

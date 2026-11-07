@@ -128,24 +128,53 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
   }
 }
 
-/** 搜索过滤：支持任务内容、文档名称与路径、祖先标题名称 */
+/** 搜索过滤：支持任务内容、文档名称与路径、祖先标题名称；命中任务的嵌套子任务随父保留 */
 export function filterTasksByKeyword(tasks: TaskItem[], keyword: string): TaskItem[] {
   const kw = keyword.trim().toLowerCase()
   if (!kw) {
     return tasks
   }
-  return tasks.filter((task) => {
-    if (task.content.toLowerCase().includes(kw)) {
-      return true
+  const matched = new Set<string>()
+  for (const task of tasks) {
+    if (
+      task.content.toLowerCase().includes(kw)
+      || (task.hpath && task.hpath.toLowerCase().includes(kw))
+      || (task.headingPath && task.headingPath.some((h) => h.content.toLowerCase().includes(kw)))
+    ) {
+      matched.add(task.id)
     }
-    if (task.hpath && task.hpath.toLowerCase().includes(kw)) {
-      return true
+  }
+  if (matched.size === 0) {
+    return []
+  }
+
+  // 命中任务的嵌套子任务随父展示（对齐源文档中子列表的展开观感）：
+  // 沿 parentTaskId 逐层收编全部后代，仅向下不回溯（子任务自身命中时父任务不出现）
+  const childrenByParent = new Map<string, TaskItem[]>()
+  for (const task of tasks) {
+    const pid = task.parentTaskId
+    if (!pid) {
+      continue
     }
-    if (task.headingPath && task.headingPath.some((h) => h.content.toLowerCase().includes(kw))) {
-      return true
+    const arr = childrenByParent.get(pid)
+    if (arr) {
+      arr.push(task)
+    } else {
+      childrenByParent.set(pid, [task])
     }
-    return false
-  })
+  }
+  const keep = new Set(matched)
+  const frontier = [...matched]
+  while (frontier.length > 0) {
+    const pid = frontier.pop()!
+    for (const child of childrenByParent.get(pid) ?? []) {
+      if (!keep.has(child.id)) {
+        keep.add(child.id)
+        frontier.push(child.id)
+      }
+    }
+  }
+  return tasks.filter((task) => keep.has(task.id))
 }
 
 /** 状态过滤：仅按完成状态过滤 */
