@@ -15,7 +15,7 @@
   "levelsLabel": "Heading levels",
   "pillNotebook": "Notebook",
   "pillDoc": "Doc",
-  "headingPill": "Level ${n}",
+  "headingPill": "H${n}",
   "excludePathsLabel": "Excluded paths",
   "excludePathPlaceholder": "Search docs to exclude",
   "addExclude": "Add excluded path",

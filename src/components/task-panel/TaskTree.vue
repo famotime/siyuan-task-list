@@ -187,13 +187,13 @@ function titleClass(group: TaskGroup): string {
   return "tl-title--notebook"
 }
 
-/** 类型胶囊文案：标题按层级显示（如“3级标题”） */
+/** 类型胶囊文案：标题按层级显示（如“H3”或“3级标题”） */
 function pillText(group: TaskGroup): string {
   if (group.kind === "doc") {
     return i18n.pillDoc || "Doc"
   }
   if (group.kind === "heading") {
-    return (i18n.headingPill || "${n}级标题").replace("${n}", String(group.level))
+    return (i18n.headingPill || "H${n}").replace("${n}", String(group.level))
   }
   return i18n.pillNotebook || "Notebook"
 }
