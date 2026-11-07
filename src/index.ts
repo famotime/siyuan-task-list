@@ -135,6 +135,21 @@ export default class TaskListPlugin extends Plugin {
       },
     })
     setting.addItem({
+      title: (this.i18n.settingsCountUnfinished as string) || "Count open tasks",
+      description: (this.i18n.settingsCountUnfinishedDesc as string) || "",
+      createActionElement: () => {
+        const switchEl = document.createElement("input")
+        switchEl.className = "b3-switch fn__flex-center"
+        switchEl.type = "checkbox"
+        switchEl.checked = Boolean(this.config.countUnfinished)
+        switchEl.addEventListener("change", () => {
+          this.config.countUnfinished = switchEl.checked
+          this.saveConfig()
+        })
+        return switchEl
+      },
+    })
+    setting.addItem({
       title: (this.i18n.settingsLimit as string) || "Aggregation limit",
       description: (this.i18n.settingsLimitDesc as string) || "",
       createActionElement: () => {

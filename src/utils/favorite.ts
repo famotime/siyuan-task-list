@@ -2,6 +2,7 @@
  * 常用路径与筛选条件收藏项辅助工具。
  */
 import type { PathFavorite, StatusFilter } from "@/data/types"
+import { statusFiltersEqual } from "@/data/status"
 
 /**
  * 比较两个数字数组（元素集合与频次一致，忽略顺序）。
@@ -42,7 +43,7 @@ export function isFavoriteMatching(
   if (Boolean(fav.includeLinked) !== Boolean(state.includeLinked)) {
     return false
   }
-  if (state.status !== undefined && fav.status !== state.status) {
+  if (state.status !== undefined && !statusFiltersEqual(fav.status, state.status)) {
     return false
   }
   if (state.showHeadings !== undefined && fav.showHeadings !== state.showHeadings) {

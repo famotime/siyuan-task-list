@@ -102,5 +102,37 @@ describe("src/utils/favorite.ts", () => {
         }),
       ).toBe(false)
     })
+
+    it("should match equivalent status arrays or configs", () => {
+      // 字符串 "todo" 与单元素数组 ["todo"] 语义等价
+      expect(
+        isFavoriteMatching(fav, {
+          docId: "doc-100",
+          includeSubdocs: true,
+          includeLinked: false,
+          status: ["todo"],
+          showHeadings: true,
+          headingLevels: [1, 2],
+        }),
+      ).toBe(true)
+
+      // 复合多选状态收藏项
+      const multiFav = createMockFavorite({
+        docId: "doc-200",
+        status: ["todo", "in_progress"],
+      })
+      expect(
+        isFavoriteMatching(multiFav, {
+          docId: "doc-200",
+          status: ["in_progress", "todo"],
+        }),
+      ).toBe(true)
+      expect(
+        isFavoriteMatching(multiFav, {
+          docId: "doc-200",
+          status: ["todo"],
+        }),
+      ).toBe(false)
+    })
   })
 })

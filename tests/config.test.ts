@@ -69,6 +69,7 @@ describe("src/config.ts", () => {
         scope: { mode: "notebook", box: "nb-1" },
         showHeadings: false,
         sortTodoFirst: true,
+        countUnfinished: true,
         foldedKeys: ["k1", "k2", 123 as any],
         docSort: "title-desc",
       })
@@ -76,6 +77,7 @@ describe("src/config.ts", () => {
       expect(config.scope.box).toBe("nb-1")
       expect(config.showHeadings).toBe(false)
       expect(config.sortTodoFirst).toBe(true)
+      expect(config.countUnfinished).toBe(true)
       expect(config.foldedKeys).toEqual(["k1", "k2"])
       expect(config.docSort).toBe("title-desc")
     })

@@ -80,6 +80,7 @@
 <script setup lang="ts">
 import TlIcon from "@/components/_shared/TlIcon.vue"
 import type { PathFavorite, StatusFilter } from "@/data/types"
+import { formatStatusFilterLabel } from "@/data/status"
 import { type FavoriteMatchState, isFavoriteMatching } from "@/utils/favorite"
 import { usePlugin } from "@/main"
 
@@ -104,12 +105,6 @@ function isItemActive(fav: PathFavorite): boolean {
 }
 
 function statusTagText(status?: StatusFilter): string {
-  if (status === "todo") {
-    return i18n.filterTodo || "未完成"
-  }
-  if (status === "done") {
-    return i18n.filterDone || "已完成"
-  }
-  return i18n.filterAll || "全部"
+  return formatStatusFilterLabel(status, i18n)
 }
 </script>

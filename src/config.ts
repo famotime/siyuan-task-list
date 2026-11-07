@@ -19,6 +19,8 @@ export interface TaskListConfig {
   foldedKeys: string[]
   /** 未完成任务排序靠前（同级列表块内） */
   sortTodoFirst: boolean
+  /** 分组徽标统计未完成项（开启时分子显示所有未完成项数量，关闭时显示已完成数量） */
+  countUnfinished: boolean
   /** 文档排序规则（更新时间/创建时间/文件名 的正序或倒序） */
   docSort: DocSortMode
   /** 常用路径与筛选条件收藏项（最多10项） */
@@ -32,6 +34,7 @@ export const DEFAULT_CONFIG: Readonly<TaskListConfig> = Object.freeze({
   headingLevels: [1, 2, 3, 4, 5, 6],
   foldedKeys: [],
   sortTodoFirst: false,
+  countUnfinished: false,
   docSort: "updated-desc",
   favorites: [],
 })
@@ -83,6 +86,10 @@ export function sanitizeConfig(
 
   if (typeof saved.sortTodoFirst === "boolean") {
     result.sortTodoFirst = saved.sortTodoFirst
+  }
+
+  if (typeof saved.countUnfinished === "boolean") {
+    result.countUnfinished = saved.countUnfinished
   }
 
   const VALID_DOC_SORTS: ReadonlySet<string> = new Set([

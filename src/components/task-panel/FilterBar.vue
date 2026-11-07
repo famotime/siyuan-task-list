@@ -1,17 +1,10 @@
 <template>
   <div class="tl-filter">
-    <div class="tl-segments">
-      <button
-        v-for="opt in options"
-        :key="opt.value"
-        type="button"
-        class="tl-segment"
-        :class="{ 'tl-segment--active': status === opt.value }"
-        @click="emit('update:status', opt.value)"
-      >
-        {{ opt.text }}
-      </button>
-    </div>
+    <StatusFilterSelect
+      :model-value="status"
+      :custom-markers="customMarkers"
+      @update:model-value="emit('update:status', $event)"
+    />
     <input
       class="b3-text-field tl-search"
       :value="keyword"
@@ -78,7 +71,8 @@
 import { computed, ref } from "vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
 import TlPopover from "@/components/_shared/TlPopover.vue"
-import type { StatusFilter } from "@/data/tasks"
+import StatusFilterSelect from "@/components/task-panel/filter/StatusFilterSelect.vue"
+import type { StatusFilter } from "@/data/types"
 import { usePlugin } from "@/main"
 
 const props = defineProps<{
@@ -86,6 +80,7 @@ const props = defineProps<{
   keyword: string
   showHeadings: boolean
   headingLevels: number[]
+  customMarkers?: Array<{ marker: string, count: number }>
 }>()
 
 const emit = defineEmits<{
@@ -99,12 +94,6 @@ const i18n = usePlugin().i18n
 
 const levelsRef = ref<HTMLElement | null>(null)
 const levelsOpen = ref(false)
-
-const options = computed(() => [
-  { value: "all" as StatusFilter, text: i18n.filterAll || "All" },
-  { value: "todo" as StatusFilter, text: i18n.filterTodo || "Open" },
-  { value: "done" as StatusFilter, text: i18n.filterDone || "Done" },
-])
 
 const levelsNonDefault = computed(() =>
   !props.showHeadings || props.headingLevels.length < 6,

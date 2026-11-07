@@ -21,6 +21,7 @@
       v-model:keyword="keyword"
       v-model:show-headings="showHeadings"
       v-model:heading-levels="headingLevels"
+      :custom-markers="customMarkers"
     />
     <div class="tl-body">
       <div
@@ -63,7 +64,9 @@
           :folded="folded"
           :can-exclude="canExclude"
           :keyword="keyword"
+          :count-unfinished="countUnfinished"
           @toggle="onToggle"
+          @update-marker="onUpdateMarker"
           @jump="onJump"
           @toggle-fold="onToggleFold"
           @toggle-fold-all="onToggleFoldAll"
@@ -83,7 +86,12 @@ import TaskTree from "@/components/task-panel/TaskTree.vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
 import { lsNotebooks, pushErrMsg, pushMsg, updateTaskListItemMarker } from "@/api"
 import { normalizeExcludePaths } from "@/data/scope"
-import { markerForStatus } from "@/data/status"
+import {
+  extractCustomMarkers,
+  isTaskDone,
+  markerForStatus,
+  resolveTaskStatus,
+} from "@/data/status"
 import { isFavoriteMatching } from "@/utils/favorite"
 import { collectGroupKeys } from "@/utils/tree"
 import {
@@ -123,6 +131,7 @@ const showHeadings = ref(true)
 const headingLevels = ref<number[]>([1, 2, 3, 4, 5, 6])
 const folded = ref(new Set<string>())
 const sortTodoFirst = ref(plugin.config.sortTodoFirst ?? false)
+const countUnfinished = ref(plugin.config.countUnfinished ?? false)
 const docSort = ref<DocSortMode>(plugin.config.docSort ?? "updated-desc")
 
 const groups = computed<TaskGroup[]>(() => {
@@ -139,6 +148,10 @@ const groups = computed<TaskGroup[]>(() => {
     docMetas: collection.value.docMetas,
   })
 })
+
+const customMarkers = computed(() =>
+  extractCustomMarkers(collection.value?.tasks ?? []),
+)
 
 const truncatedText = computed(() =>
   (i18n.truncated || "").replace("${n}", String(plugin.config.limit)),
@@ -165,9 +178,10 @@ async function refresh() {
     prunePendingConfirm()
     for (const [id, pending] of pendingConfirm) {
       const task = collection.value.tasks.find((t) => t.id === id)
-      if (task && task.done !== pending.done) {
+      if (task && (task.marker !== pending.marker || task.done !== pending.done)) {
+        task.marker = pending.marker
         task.done = pending.done
-        task.marker = markerForStatus(pending.done)
+        task.status = resolveTaskStatus(pending.marker)
       }
     }
     // 注意：refresh 内严禁写插件存储——每次写盘都会触发内核存储变更广播，
@@ -197,7 +211,7 @@ function scheduleRefresh(delay = 500) {
  * 延迟窗口，期间的自动刷新会读到过期状态并覆盖乐观更新；此映射在刷新后
  * 短时间内强制保留写回结果，超时后恢复以服务端数据为准。
  */
-const pendingConfirm = new Map<string, { done: boolean, until: number }>()
+const pendingConfirm = new Map<string, { marker: string, done: boolean, until: number }>()
 
 function prunePendingConfirm() {
   const now = Date.now()
@@ -208,33 +222,35 @@ function prunePendingConfirm() {
   }
 }
 
-async function onToggle(task: TaskItem) {
+async function onUpdateMarker(task: TaskItem, newMarker: string) {
   const previousDone = task.done
   const previousMarker = task.marker
-  const targetDone = !previousDone
+  const previousStatus = task.status
+  const previousPrevMarker = task.prevMarker
 
-  // 写回值：勾选为 "x"；取消时优先还原本会话中勾选前的自定义标记（/ - ! 等）
-  let writeMarker: string
+  const targetMarker = newMarker
+  const targetDone = isTaskDone(targetMarker)
+  const targetStatus = resolveTaskStatus(targetMarker)
+
+  // 记录先前的非 x 标记，以便从 done 恢复时还原
   if (targetDone) {
-    writeMarker = markerForStatus(true)
-  } else {
-    const customPrevious = task.prevMarker
-    writeMarker = customPrevious && customPrevious.trim() && customPrevious.trim().toLowerCase() !== "x"
-      ? customPrevious
-      : markerForStatus(false)
+    task.prevMarker = previousMarker
+  } else if (previousDone) {
+    task.prevMarker = undefined
   }
 
   // 乐观更新：视图即时重排，失败回滚
-  task.prevMarker = targetDone ? previousMarker : undefined
   task.done = targetDone
-  task.marker = writeMarker
+  task.marker = targetMarker
+  task.status = targetStatus
   if (collection.value) {
     collection.value = { ...collection.value, tasks: [...collection.value.tasks] }
   }
+
   try {
-    await updateTaskListItemMarker(task.id, writeMarker)
+    await updateTaskListItemMarker(task.id, targetMarker)
     // 写回成功：短窗口内保护乐观状态，并在索引稳定后做一次确认刷新
-    pendingConfirm.set(task.id, { done: targetDone, until: Date.now() + 6000 })
+    pendingConfirm.set(task.id, { marker: targetMarker, done: targetDone, until: Date.now() + 6000 })
     clearTimeout(confirmTimer)
     confirmTimer = setTimeout(() => {
       refresh()
@@ -242,12 +258,25 @@ async function onToggle(task: TaskItem) {
   } catch {
     task.done = previousDone
     task.marker = previousMarker
-    task.prevMarker = undefined
+    task.status = previousStatus
+    task.prevMarker = previousPrevMarker
     if (collection.value) {
       collection.value = { ...collection.value, tasks: [...collection.value.tasks] }
     }
     pushErrMsg(i18n.toggleFailed || "Failed to write back", 4000)
   }
+}
+
+async function onToggle(task: TaskItem) {
+  // 对齐思源原生编辑器：待办或进行中点击变为完成；已完成、放弃或自定义点击变为待办（若有先前标记则优先恢复）
+  if (task.status === "todo" || task.status === "in_progress") {
+    return onUpdateMarker(task, "x")
+  }
+  const customPrevious = task.prevMarker
+  const restoreMarker = customPrevious && customPrevious.trim() && customPrevious.trim().toLowerCase() !== "x"
+    ? customPrevious
+    : " "
+  return onUpdateMarker(task, restoreMarker)
 }
 
 function onJump(task: TaskItem) {
@@ -304,6 +333,7 @@ onMounted(async () => {
   // 监听插件设置保存通知，即时响应排序等首选项变更
   ;(plugin as any).onConfigUpdated = (cfg: any) => {
     sortTodoFirst.value = Boolean(cfg.sortTodoFirst)
+    countUnfinished.value = Boolean(cfg.countUnfinished)
   }
   // 面板挂载可能早于插件 onload 的配置加载完成，先等待再初始化范围与视图状态
   await (plugin as any).readyPromise?.catch?.(() => {})
@@ -314,6 +344,7 @@ onMounted(async () => {
     : [1, 2, 3, 4, 5, 6]
   folded.value = new Set(Array.isArray(plugin.config.foldedKeys) ? plugin.config.foldedKeys : [])
   sortTodoFirst.value = Boolean(plugin.config.sortTodoFirst)
+  countUnfinished.value = Boolean(plugin.config.countUnfinished)
   favorites.value = Array.isArray(plugin.config.favorites) ? [...plugin.config.favorites] : []
   try {
     const result = await lsNotebooks()

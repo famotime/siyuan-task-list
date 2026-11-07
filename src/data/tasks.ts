@@ -6,7 +6,13 @@ import { lsNotebooks, sql } from "@/api"
 import { resolveHeadingPaths } from "@/data/heading"
 import { resolveDocBlockOrders } from "@/data/order"
 import { buildTaskQuery, queryTaskRows } from "@/data/scope"
-import { isTaskDone, parseTaskLine } from "@/data/status"
+import {
+  computeTaskStatusCounts,
+  isTaskDone,
+  matchTaskStatus,
+  parseTaskLine,
+  resolveTaskStatus,
+} from "@/data/status"
 import type {
   DocMeta,
   DocSortMode,
@@ -16,6 +22,7 @@ import type {
   TaskItem,
   TaskListGroup,
   StatusFilter,
+  TaskStatusCounts,
 } from "@/data/types"
 
 export type { StatusFilter } from "@/data/types"
@@ -108,6 +115,7 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
       content: (parsed?.text ?? row.content ?? "").trim(),
       marker,
       done: isTaskDone(marker),
+      status: resolveTaskStatus(marker),
       box: row.box,
       rootId: row.root_id,
       hpath: row.hpath,
@@ -177,12 +185,12 @@ export function filterTasksByKeyword(tasks: TaskItem[], keyword: string): TaskIt
   return tasks.filter((task) => keep.has(task.id))
 }
 
-/** 状态过滤：仅按完成状态过滤 */
-export function filterTasksByStatus(tasks: TaskItem[], status: StatusFilter): TaskItem[] {
+/** 状态过滤：支持单选、多选与自定义标记细分 */
+export function filterTasksByStatus(tasks: TaskItem[], status: StatusFilter = "all"): TaskItem[] {
   if (status === "all") {
     return tasks
   }
-  return tasks.filter((task) => (status === "todo" ? !task.done : task.done))
+  return tasks.filter((task) => matchTaskStatus(task, status))
 }
 
 /** 前端筛选：完成状态三态 + 内容关键字 */
@@ -265,6 +273,16 @@ function groupByList(tasks: TaskItem[], sortTodoFirst = false): TaskListGroup[] 
   return [{ key: "tasks", tasks: sorted }]
 }
 
+function mergeStatusCounts(a?: TaskStatusCounts, b?: TaskStatusCounts): TaskStatusCounts {
+  return {
+    todo: (a?.todo ?? 0) + (b?.todo ?? 0),
+    inProgress: (a?.inProgress ?? 0) + (b?.inProgress ?? 0),
+    done: (a?.done ?? 0) + (b?.done ?? 0),
+    canceled: (a?.canceled ?? 0) + (b?.canceled ?? 0),
+    custom: (a?.custom ?? 0) + (b?.custom ?? 0),
+  }
+}
+
 function makeGroup(
   key: string,
   kind: TaskGroup["kind"],
@@ -274,9 +292,10 @@ function makeGroup(
   children: TaskGroup[],
   total: number,
   done: number,
+  statusCounts?: TaskStatusCounts,
   extra?: { parentPath?: string, hpath?: string, box?: string },
 ): TaskGroup {
-  return { key, kind, title, level, listGroups, children, total, done, ...extra }
+  return { key, kind, title, level, listGroups, children, total, done, statusCounts, ...extra }
 }
 
 /** 分组组装选项：标题分组层的可见性与任务排序规则 */
@@ -405,6 +424,7 @@ export function buildTaskGroups(
     const docs = sortDocEntries(rawDocs, docSort, docMetas)
     let nbTotal = 0
     let nbDone = 0
+    let nbStatusCounts: TaskStatusCounts = { todo: 0, inProgress: 0, done: 0, canceled: 0, custom: 0 }
     const visibleDocGroups: TaskGroup[] = []
 
     for (const doc of docs) {
@@ -421,6 +441,7 @@ export function buildTaskGroups(
       )
       nbTotal += res.total
       nbDone += res.done
+      nbStatusCounts = mergeStatusCounts(nbStatusCounts, res.statusCounts)
       if (res.hasVisible && res.group) {
         visibleDocGroups.push(res.group)
       }
@@ -437,6 +458,7 @@ export function buildTaskGroups(
           visibleDocGroups,
           nbTotal,
           nbDone,
+          nbStatusCounts,
         ),
       )
     }
@@ -463,13 +485,14 @@ function buildDocGroup(
   levels: ReadonlySet<number>,
   sortTodoFirst = false,
   statusFilter: StatusFilter = "all",
-): { group: TaskGroup | null, hasVisible: boolean, total: number, done: number } {
+): { group: TaskGroup | null, hasVisible: boolean, total: number, done: number, statusCounts: TaskStatusCounts } {
   const { parentPath, leaf } = splitHpath(hpath)
   const title = leaf || untitledLabel
 
   if (!showHeadings) {
     const total = tasks.length
     const done = tasks.filter((t) => t.done).length
+    const statusCounts = computeTaskStatusCounts(tasks)
     const visibleTasks = filterTasksByStatus(tasks, statusFilter)
     const hasVisible = visibleTasks.length > 0
     const group = hasVisible
@@ -482,10 +505,11 @@ function buildDocGroup(
           [],
           total,
           done,
+          statusCounts,
           { parentPath, hpath, box },
         )
       : null
-    return { group, hasVisible, total, done }
+    return { group, hasVisible, total, done, statusCounts }
   }
 
   // 每个 headingId -> 从文档级到自身的祖先链（任务路径天然覆盖全部相关标题）
@@ -561,10 +585,11 @@ function buildDocGroup(
 
   const buildHeadingGroup = (
     node: HeadingNode,
-  ): { group: TaskGroup | null, hasVisible: boolean, total: number, done: number } => {
+  ): { group: TaskGroup | null, hasVisible: boolean, total: number, done: number, statusCounts: TaskStatusCounts } => {
     const directTasks = byHeading.get(node.id) ?? []
     const directTotal = directTasks.length
     const directDone = directTasks.filter((t) => t.done).length
+    let statusCounts = computeTaskStatusCounts(directTasks)
 
     const childNodes = childrenMap.get(node.id) ?? []
     const childResults = childNodes.map(buildHeadingGroup)
@@ -576,6 +601,7 @@ function buildDocGroup(
     for (const res of childResults) {
       total += res.total
       done += res.done
+      statusCounts = mergeStatusCounts(statusCounts, res.statusCounts)
       if (res.hasVisible && res.group) {
         visibleChildren.push(res.group)
       }
@@ -585,7 +611,7 @@ function buildDocGroup(
     const hasVisible = visibleDirectTasks.length > 0 || visibleChildren.length > 0
 
     if (!hasVisible) {
-      return { group: null, hasVisible: false, total, done }
+      return { group: null, hasVisible: false, total, done, statusCounts }
     }
 
     const group = makeGroup(
@@ -597,14 +623,16 @@ function buildDocGroup(
       visibleChildren,
       total,
       done,
+      statusCounts,
     )
 
-    return { group, hasVisible: true, total, done }
+    return { group, hasVisible: true, total, done, statusCounts }
   }
 
   const docDirectTasks = byHeading.get(null) ?? []
   const docDirectTotal = docDirectTasks.length
   const docDirectDone = docDirectTasks.filter((t) => t.done).length
+  let docStatusCounts = computeTaskStatusCounts(docDirectTasks)
 
   const headingResults = roots.map(buildHeadingGroup)
 
@@ -615,6 +643,7 @@ function buildDocGroup(
   for (const res of headingResults) {
     docTotal += res.total
     docDone += res.done
+    docStatusCounts = mergeStatusCounts(docStatusCounts, res.statusCounts)
     if (res.hasVisible && res.group) {
       visibleHeadingChildren.push(res.group)
     }
@@ -624,7 +653,7 @@ function buildDocGroup(
   const hasVisible = visibleDocDirectTasks.length > 0 || visibleHeadingChildren.length > 0
 
   if (!hasVisible) {
-    return { group: null, hasVisible: false, total: docTotal, done: docDone }
+    return { group: null, hasVisible: false, total: docTotal, done: docDone, statusCounts: docStatusCounts }
   }
 
   const group = makeGroup(
@@ -636,8 +665,9 @@ function buildDocGroup(
     visibleHeadingChildren,
     docTotal,
     docDone,
+    docStatusCounts,
     { parentPath, hpath, box },
   )
 
-  return { group, hasVisible: true, total: docTotal, done: docDone }
+  return { group, hasVisible: true, total: docTotal, done: docDone, statusCounts: docStatusCounts }
 }

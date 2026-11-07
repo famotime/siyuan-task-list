@@ -47,7 +47,7 @@
         <span
           class="tl-group__count ariaLabel"
           :aria-label="countTooltip(group)"
-        >{{ group.total - group.done }}/{{ group.total }}</span>
+        >{{ getDisplayCount(group) }}</span>
         <div
           v-if="hasActions(group)"
           class="tl-group__actions"
@@ -93,6 +93,7 @@
             :task="task"
             :keyword="keyword"
             @toggle="emit('toggle', $event)"
+            @update-marker="(t, m) => emit('updateMarker', t, m)"
             @jump="emit('jump', $event)"
           />
         </div>
@@ -103,7 +104,9 @@
           :folded="folded"
           :can-exclude="canExclude"
           :keyword="keyword"
+          :count-unfinished="countUnfinished"
           @toggle="emit('toggle', $event)"
+          @update-marker="(t, m) => emit('updateMarker', t, m)"
           @jump="emit('jump', $event)"
           @toggle-fold="emit('toggleFold', $event)"
           @toggle-fold-all="emit('toggleFoldAll', $event)"
@@ -132,10 +135,13 @@ const props = withDefaults(defineProps<{
   canExclude?: boolean
   /** 搜索关键字：透传至任务行进行命中内容强调色高亮 */
   keyword?: string
-}>(), { depth: 0, canExclude: false, keyword: "" })
+  /** 分组徽标是否统计未完成项（开启时分子显示未完成数，关闭时显示已完成数） */
+  countUnfinished?: boolean
+}>(), { depth: 0, canExclude: false, keyword: "", countUnfinished: false })
 
 const emit = defineEmits<{
   toggle: [task: TaskItem]
+  updateMarker: [task: TaskItem, marker: string]
   jump: [task: TaskItem]
   toggleFold: [key: string]
   toggleFoldAll: [group: TaskGroup]
@@ -144,7 +150,50 @@ const emit = defineEmits<{
 
 const i18n = usePlugin().i18n
 
+function getDisplayCount(group: TaskGroup): string {
+  if (props.countUnfinished) {
+    const counts = group.statusCounts
+    const unfinished = counts
+      ? (counts.todo + counts.inProgress + counts.custom)
+      : (group.total - group.done)
+    return `${unfinished}/${group.total}`
+  }
+  return `${group.done}/${group.total}`
+}
+
 function countTooltip(group: TaskGroup): string {
+  const counts = group.statusCounts
+  if (props.countUnfinished) {
+    if (counts) {
+      const unfinished = counts.todo + counts.inProgress + counts.custom
+      const template = i18n.statusSummaryTooltipUnfinished
+        || "未完成 ${unfinished} / 总计 ${total} (待办: ${todo} · 进行中: ${inProgress} · 自定义: ${custom} · 完成: ${done} · 放弃: ${canceled})"
+      return template
+        .replace("${unfinished}", String(unfinished))
+        .replace("${total}", String(group.total))
+        .replace("${todo}", String(counts.todo))
+        .replace("${inProgress}", String(counts.inProgress))
+        .replace("${custom}", String(counts.custom))
+        .replace("${done}", String(counts.done))
+        .replace("${canceled}", String(counts.canceled))
+    }
+    const todo = group.total - group.done
+    return (i18n.groupCountTooltip || "未完成 ${todo} / 全部 ${total}")
+      .replace("${todo}", String(todo))
+      .replace("${total}", String(group.total))
+  }
+
+  if (counts) {
+    const template = i18n.statusSummaryTooltip
+      || "完成 ${done} / 总计 ${total} (待办: ${todo} · 进行中: ${inProgress} · 放弃: ${canceled} · 自定义: ${custom})"
+    return template
+      .replace("${done}", String(group.done))
+      .replace("${total}", String(group.total))
+      .replace("${todo}", String(counts.todo))
+      .replace("${inProgress}", String(counts.inProgress))
+      .replace("${canceled}", String(counts.canceled))
+      .replace("${custom}", String(counts.custom))
+  }
   const todo = group.total - group.done
   const total = group.total
   return (i18n.groupCountTooltip || "未完成 ${todo} / 全部 ${total}")

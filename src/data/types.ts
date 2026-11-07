@@ -3,8 +3,17 @@
  * 术语见仓库根目录 GLOSSARY.md。
  */
 
-/** 任务项完成状态（自定义标记 [/][-][!] 按"未完成"归组） */
-export type TaskStatus = "todo" | "done"
+/** 任务项完成状态分类：待办( )、进行中(/)、完成(x)、放弃(-)、自定义(其它字符) */
+export type TaskStatus = "todo" | "in_progress" | "done" | "canceled" | "custom"
+
+/** 任务状态统计明细（用于分组徽标悬停 Tooltip） */
+export interface TaskStatusCounts {
+  todo: number
+  inProgress: number
+  done: number
+  canceled: number
+  custom: number
+}
 
 /** 文档排列规则（更新时间/创建时间/文件名 的正序或倒序） */
 export type DocSortMode =
@@ -45,6 +54,8 @@ export interface TaskItem {
   /** 任务标记字符：" " 未完成、"x" 已完成、"/" "-" "!" 等自定义标记 */
   marker: string
   done: boolean
+  /** 细分状态类别 */
+  status: TaskStatus
   box: string
   /** 所在文档 id */
   rootId: string
@@ -93,13 +104,27 @@ export interface TaskGroup {
   /** 该分组下全部任务的统计（未完成 = total - done，全部 = total；基于当前搜索关键字过滤集） */
   total: number
   done: number
+  /** 各细分状态统计数量（悬停 tooltip 展示） */
+  statusCounts?: TaskStatusCounts
 }
 
 /** 汇总范围四档 */
 export type ScopeMode = "activeDoc" | "path" | "notebook" | "all"
 
-/** 任务状态过滤 */
-export type StatusFilter = "all" | TaskStatus
+/** 任务状态过滤配置对象（支持多选与自定义标记细分） */
+export interface StatusFilterConfig {
+  /** 允许展示的状态类型列表 */
+  types: TaskStatus[]
+  /** 若指定，则自定义状态只匹配这些特定单字符；若为空或未定义，则匹配所有自定义单字符 */
+  customMarkers?: string[]
+}
+
+/** 任务状态过滤：支持单选预设、状态数组多选或细分配置对象 */
+export type StatusFilter =
+  | "all"
+  | TaskStatus
+  | TaskStatus[]
+  | StatusFilterConfig
 
 /** 常用路径与筛选条件收藏项（最多10项） */
 export interface PathFavorite {

@@ -30,11 +30,15 @@ vi.mock("@/data/order", () => ({
 }))
 
 function createMockTask(overrides: Partial<TaskItem> = {}): TaskItem {
+  const marker = overrides.marker ?? (overrides.done ? "x" : " ")
+  const done = overrides.done ?? (marker.trim().toLowerCase() === "x")
+  const status = overrides.status ?? (done ? "done" : (marker === "/" ? "in_progress" : (marker === "-" ? "canceled" : (marker.trim() === "" ? "todo" : "custom"))))
   return {
     id: "task-1",
     content: "Task Content",
-    marker: " ",
-    done: false,
+    marker,
+    done,
+    status,
     box: "nb-1",
     rootId: "doc-1",
     hpath: "/Doc 1",
@@ -134,6 +138,22 @@ describe("src/data/tasks.ts", () => {
       expect(filterTasksByStatus(tasks, "all")).toHaveLength(3)
       expect(filterTasksByStatus(tasks, "todo")).toHaveLength(2)
       expect(filterTasksByStatus(tasks, "done")).toHaveLength(1)
+
+      const diverseTasks: TaskItem[] = [
+        createMockTask({ id: "d1", marker: " ", status: "todo" }),
+        createMockTask({ id: "d2", marker: "/", status: "in_progress" }),
+        createMockTask({ id: "d3", marker: "x", done: true, status: "done" }),
+        createMockTask({ id: "d4", marker: "-", status: "canceled" }),
+        createMockTask({ id: "d5", marker: "!", status: "custom" }),
+        createMockTask({ id: "d6", marker: "?", status: "custom" }),
+      ]
+
+      // 多选组合：仅待办与进行中
+      expect(filterTasksByStatus(diverseTasks, ["todo", "in_progress"]).map((t) => t.id)).toEqual(["d1", "d2"])
+      // 仅已放弃
+      expect(filterTasksByStatus(diverseTasks, "canceled").map((t) => t.id)).toEqual(["d4"])
+      // 细化自定义标记
+      expect(filterTasksByStatus(diverseTasks, { types: ["custom"], customMarkers: ["!"] }).map((t) => t.id)).toEqual(["d5"])
     })
 
     it("filterTasks should combine keyword and status", () => {
@@ -273,6 +293,13 @@ describe("src/data/tasks.ts", () => {
       expect(h1Group.title).toBe("Section 1")
       expect(h1Group.total).toBe(2) // h1 directly (1) + h2 child (1)
       expect(h1Group.done).toBe(1)
+      expect(h1Group.statusCounts).toEqual({
+        todo: 1,
+        inProgress: 0,
+        done: 1,
+        canceled: 0,
+        custom: 0,
+      })
 
       expect(h1Group.children).toHaveLength(1)
       const h2Group = h1Group.children[0]
