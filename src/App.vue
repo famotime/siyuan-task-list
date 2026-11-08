@@ -65,6 +65,7 @@
           :can-exclude="canExclude"
           :keyword="keyword"
           :count-unfinished="countUnfinished"
+          :click-status-menu="clickStatusMenu"
           @toggle="onToggle"
           @update-marker="onUpdateMarker"
           @jump="onJump"
@@ -84,7 +85,13 @@ import FilterBar from "@/components/task-panel/FilterBar.vue"
 import ScopeBar from "@/components/task-panel/ScopeBar.vue"
 import TaskTree from "@/components/task-panel/TaskTree.vue"
 import TlIcon from "@/components/_shared/TlIcon.vue"
-import { lsNotebooks, pushErrMsg, pushMsg, updateTaskListItemMarker } from "@/api"
+import {
+  batchUpdateTaskListItemMarker,
+  lsNotebooks,
+  pushErrMsg,
+  pushMsg,
+  updateTaskListItemMarker,
+} from "@/api"
 import { normalizeExcludePaths } from "@/data/scope"
 import {
   extractCustomMarkers,
@@ -107,6 +114,7 @@ import type {
   ScopeSelection,
   TaskGroup,
   TaskItem,
+  TaskStatus,
 } from "@/data/types"
 import { usePlugin } from "@/main"
 
@@ -132,6 +140,7 @@ const headingLevels = ref<number[]>([1, 2, 3, 4, 5, 6])
 const folded = ref(new Set<string>())
 const sortTodoFirst = ref(plugin.config.sortTodoFirst ?? false)
 const countUnfinished = ref(plugin.config.countUnfinished ?? false)
+const clickStatusMenu = ref(plugin.config.clickStatusMenu ?? false)
 const docSort = ref<DocSortMode>(plugin.config.docSort ?? "updated-desc")
 
 const groups = computed<TaskGroup[]>(() => {
@@ -184,6 +193,15 @@ async function refresh() {
         task.status = resolveTaskStatus(pending.marker)
       }
     }
+    // 防抖待落盘队列中的最新状态优先覆盖（避免刷新冲刷掉尚未落盘的前台即时修改）
+    for (const [id, item] of pendingWrites) {
+      const task = collection.value.tasks.find((t) => t.id === id)
+      if (task && task.marker !== item.marker) {
+        task.marker = item.marker
+        task.done = isTaskDone(item.marker)
+        task.status = resolveTaskStatus(item.marker)
+      }
+    }
     // 注意：refresh 内严禁写插件存储——每次写盘都会触发内核存储变更广播，
     // 极易与面板刷新形成自激励循环（范围持久化仅在 scope watch 中防抖执行）
   } catch (error: any) {
@@ -222,44 +240,140 @@ function prunePendingConfirm() {
   }
 }
 
-async function onUpdateMarker(task: TaskItem, newMarker: string) {
-  const previousDone = task.done
-  const previousMarker = task.marker
-  const previousStatus = task.status
-  const previousPrevMarker = task.prevMarker
+/**
+ * 待落盘队列结构：前台即时变更，后台防抖统一写盘。
+ * 记录任务初始状态以便落盘失败时精准回滚，并避免连续反悔时的多余网络开销。
+ */
+interface PendingWriteItem {
+  id: string
+  marker: string
+  task: TaskItem
+  initialState: {
+    marker: string
+    done: boolean
+    status: TaskStatus
+    prevMarker?: string
+  }
+}
 
+const pendingWrites = new Map<string, PendingWriteItem>()
+let debounceWriteTimer: ReturnType<typeof setTimeout> | undefined
+
+async function onUpdateMarker(task: TaskItem, newMarker: string) {
   const targetMarker = newMarker
   const targetDone = isTaskDone(targetMarker)
   const targetStatus = resolveTaskStatus(targetMarker)
 
-  // 记录先前的非 x 标记，以便从 done 恢复时还原
+  // 1. 同步记录进入防抖队列前的真实初始状态
+  const rawTask = collection.value?.tasks.find((t) => t.id === task.id)
+  let writeItem = pendingWrites.get(task.id)
+  if (!writeItem) {
+    writeItem = {
+      id: task.id,
+      marker: targetMarker,
+      task,
+      initialState: {
+        marker: rawTask ? rawTask.marker : task.marker,
+        done: rawTask ? rawTask.done : task.done,
+        status: rawTask ? rawTask.status : task.status,
+        prevMarker: rawTask ? rawTask.prevMarker : task.prevMarker,
+      },
+    }
+  } else {
+    writeItem.marker = targetMarker
+  }
+
+  // 计算 prevMarker 还原标记
   if (targetDone) {
-    task.prevMarker = previousMarker
-  } else if (previousDone) {
+    task.prevMarker = task.marker !== targetMarker ? task.marker : task.prevMarker
+  } else if (task.done) {
     task.prevMarker = undefined
   }
 
-  // 乐观更新：视图即时重排，失败回滚
+  // 2. 前台即时切换状态（0ms 视觉响应）：同步更新 TaskRow 引用与 collection 中的底层对象
   task.done = targetDone
   task.marker = targetMarker
   task.status = targetStatus
+
   if (collection.value) {
+    if (rawTask && rawTask !== task) {
+      rawTask.done = targetDone
+      rawTask.marker = targetMarker
+      rawTask.status = targetStatus
+      rawTask.prevMarker = task.prevMarker
+    }
+    // 触发响应式重绘
     collection.value = { ...collection.value, tasks: [...collection.value.tasks] }
   }
 
+  // 3. 乐观保护：立即记录，防止期间意外触发刷新导致前台闪退回旧状态
+  pendingConfirm.set(task.id, { marker: targetMarker, done: targetDone, until: Date.now() + 6000 })
+
+  // 4. 后台防抖落盘
+  pendingWrites.set(task.id, writeItem)
+  scheduleFlushPendingWrites(350)
+}
+
+function scheduleFlushPendingWrites(delay = 350) {
+  clearTimeout(debounceWriteTimer)
+  debounceWriteTimer = setTimeout(() => {
+    void flushPendingWrites()
+  }, delay)
+}
+
+/**
+ * 后台批量/单项落盘：防抖结束后统一向思源内核写入，彻底消除前台点击卡顿与网络竞态。
+ */
+async function flushPendingWrites() {
+  clearTimeout(debounceWriteTimer)
+  debounceWriteTimer = undefined
+
+  if (pendingWrites.size === 0) {
+    return
+  }
+
+  const batch = Array.from(pendingWrites.values())
+  pendingWrites.clear()
+
+  // 过滤快速点击反悔后最终状态与初始状态完全一致的项
+  const toSave = batch.filter((item) => item.marker !== item.initialState.marker)
+  if (toSave.length === 0) {
+    return
+  }
+
   try {
-    await updateTaskListItemMarker(task.id, targetMarker)
-    // 写回成功：短窗口内保护乐观状态，并在索引稳定后做一次确认刷新
-    pendingConfirm.set(task.id, { marker: targetMarker, done: targetDone, until: Date.now() + 6000 })
+    if (toSave.length === 1) {
+      await updateTaskListItemMarker(toSave[0].id, toSave[0].marker)
+    } else {
+      await batchUpdateTaskListItemMarker(toSave.map((item) => ({ id: item.id, marker: item.marker })))
+    }
+    // 落盘成功：在内核索引稳定后做一次确认刷新
     clearTimeout(confirmTimer)
     confirmTimer = setTimeout(() => {
       refresh()
     }, 2600)
-  } catch {
-    task.done = previousDone
-    task.marker = previousMarker
-    task.status = previousStatus
-    task.prevMarker = previousPrevMarker
+  } catch (err) {
+    // 落盘失败：对未产生新一轮变更的任务执行安全回滚
+    for (const item of toSave) {
+      if (pendingWrites.has(item.id)) {
+        continue
+      }
+      item.task.done = item.initialState.done
+      item.task.marker = item.initialState.marker
+      item.task.status = item.initialState.status
+      item.task.prevMarker = item.initialState.prevMarker
+      pendingConfirm.delete(item.id)
+
+      if (collection.value) {
+        const raw = collection.value.tasks.find((t) => t.id === item.id)
+        if (raw) {
+          raw.done = item.initialState.done
+          raw.marker = item.initialState.marker
+          raw.status = item.initialState.status
+          raw.prevMarker = item.initialState.prevMarker
+        }
+      }
+    }
     if (collection.value) {
       collection.value = { ...collection.value, tasks: [...collection.value.tasks] }
     }
@@ -268,8 +382,8 @@ async function onUpdateMarker(task: TaskItem, newMarker: string) {
 }
 
 async function onToggle(task: TaskItem) {
-  // 对齐思源原生编辑器：待办或进行中点击变为完成；已完成、放弃或自定义点击变为待办（若有先前标记则优先恢复）
-  if (task.status === "todo" || task.status === "in_progress") {
+  // 对齐思源原生切换行为：未完成项（待办/进行中/放弃/自定义）点击直接标记为完成；完成项点击切换为待办（若有先前自定义标记则优先恢复）
+  if (task.status !== "done") {
     return onUpdateMarker(task, "x")
   }
   const customPrevious = task.prevMarker
@@ -334,6 +448,7 @@ onMounted(async () => {
   ;(plugin as any).onConfigUpdated = (cfg: any) => {
     sortTodoFirst.value = Boolean(cfg.sortTodoFirst)
     countUnfinished.value = Boolean(cfg.countUnfinished)
+    clickStatusMenu.value = Boolean(cfg.clickStatusMenu)
   }
   // 面板挂载可能早于插件 onload 的配置加载完成，先等待再初始化范围与视图状态
   await (plugin as any).readyPromise?.catch?.(() => {})
@@ -345,6 +460,7 @@ onMounted(async () => {
   folded.value = new Set(Array.isArray(plugin.config.foldedKeys) ? plugin.config.foldedKeys : [])
   sortTodoFirst.value = Boolean(plugin.config.sortTodoFirst)
   countUnfinished.value = Boolean(plugin.config.countUnfinished)
+  clickStatusMenu.value = Boolean(plugin.config.clickStatusMenu)
   favorites.value = Array.isArray(plugin.config.favorites) ? [...plugin.config.favorites] : []
   try {
     const result = await lsNotebooks()
@@ -366,6 +482,10 @@ onUnmounted(() => {
   clearTimeout(saveTimer)
   clearTimeout(confirmTimer)
   clearTimeout(viewSaveTimer)
+  if (debounceWriteTimer) {
+    clearTimeout(debounceWriteTimer)
+    void flushPendingWrites()
+  }
 })
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined

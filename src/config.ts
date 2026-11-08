@@ -21,6 +21,8 @@ export interface TaskListConfig {
   sortTodoFirst: boolean
   /** 分组徽标统计未完成项（开启时分子显示所有未完成项数量，关闭时显示已完成数量） */
   countUnfinished: boolean
+  /** 点击任务状态图标弹出细分状态菜单（开启时左键弹出菜单，关闭时直接切换待办/完成） */
+  clickStatusMenu: boolean
   /** 文档排序规则（更新时间/创建时间/文件名 的正序或倒序） */
   docSort: DocSortMode
   /** 常用路径与筛选条件收藏项（最多10项） */
@@ -35,6 +37,7 @@ export const DEFAULT_CONFIG: Readonly<TaskListConfig> = Object.freeze({
   foldedKeys: [],
   sortTodoFirst: false,
   countUnfinished: false,
+  clickStatusMenu: false,
   docSort: "updated-desc",
   favorites: [],
 })
@@ -90,6 +93,10 @@ export function sanitizeConfig(
 
   if (typeof saved.countUnfinished === "boolean") {
     result.countUnfinished = saved.countUnfinished
+  }
+
+  if (typeof saved.clickStatusMenu === "boolean") {
+    result.clickStatusMenu = saved.clickStatusMenu
   }
 
   const VALID_DOC_SORTS: ReadonlySet<string> = new Set([

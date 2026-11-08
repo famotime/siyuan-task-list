@@ -122,10 +122,11 @@ export const ALL_TASK_STATUSES: readonly TaskStatus[] = Object.freeze([
   "custom",
 ])
 
-/** 未完成任务状态类型（待办 + 进行中 + 自定义） */
+/** 未完成任务状态类型（待办 + 进行中 + 放弃 + 自定义，即除完成以外的所有状态） */
 export const UNFINISHED_TASK_STATUSES: readonly TaskStatus[] = Object.freeze([
   "todo",
   "in_progress",
+  "canceled",
   "custom",
 ])
 
@@ -280,7 +281,7 @@ export function formatStatusFilterLabel(filter?: StatusFilter, i18n: any = {}): 
     return i18n.filterAll || "全部"
   }
 
-  // 检查是否恰为未完成全集 (待办 + 进行中 + 自定义)
+  // 检查是否恰为未完成全集 (待办 + 进行中 + 放弃 + 自定义)
   if (
     norm.types.size === UNFINISHED_TASK_STATUSES.length &&
     !norm.customMarkers &&
@@ -297,7 +298,7 @@ export function formatStatusFilterLabel(filter?: StatusFilter, i18n: any = {}): 
       case "in_progress":
         return i18n.statusInProgress || "进行中"
       case "done":
-        return i18n.statusDone || i18n.filterDone || "已完成"
+        return i18n.presetDone || i18n.statusDone || i18n.filterDone || "完成"
       case "canceled":
         return i18n.statusCanceled || "已放弃"
       case "custom":

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   computeTaskStatusCounts,
   extractCustomMarkers,
+  formatStatusFilterLabel,
   isTaskCanceled,
   isTaskCustom,
   isTaskDone,
@@ -14,6 +15,7 @@ import {
   parseTaskLine,
   parseTaskMarker,
   resolveTaskStatus,
+  UNFINISHED_TASK_STATUSES,
 } from "@/data/status"
 
 describe("src/data/status.ts", () => {
@@ -228,6 +230,23 @@ describe("src/data/status.ts", () => {
         canceled: 1,
         custom: 2,
       })
+    })
+  })
+
+  describe("UNFINISHED_TASK_STATUSES & formatStatusFilterLabel", () => {
+    it("should include canceled in UNFINISHED_TASK_STATUSES", () => {
+      expect(UNFINISHED_TASK_STATUSES).toEqual([
+        "todo",
+        "in_progress",
+        "canceled",
+        "custom",
+      ])
+    })
+
+    it("should format label for unfinished preset correctly", () => {
+      expect(formatStatusFilterLabel([...UNFINISHED_TASK_STATUSES])).toBe("未完成")
+      expect(formatStatusFilterLabel(["done"])).toBe("完成")
+      expect(formatStatusFilterLabel("all")).toBe("全部")
     })
   })
 })

@@ -675,18 +675,20 @@
 
 .tl-status-pop__presets {
   display: flex;
-  flex-wrap: wrap;
   gap: 4px;
 }
 
 .tl-status-pop__preset {
+  flex: 1;
+  text-align: center;
   border: 1px solid var(--b3-border-color);
   background: var(--b3-theme-surface);
   color: var(--b3-theme-on-surface);
   border-radius: 4px;
-  padding: 2px 7px;
+  padding: 3px 0;
   font-size: 11px;
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.1s ease;
 
   &:hover {

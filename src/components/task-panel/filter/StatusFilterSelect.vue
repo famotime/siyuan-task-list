@@ -48,14 +48,6 @@
           <button
             type="button"
             class="tl-status-pop__preset"
-            :class="{ 'tl-status-pop__preset--active': isPresetInProgress }"
-            @click="selectPreset('in_progress')"
-          >
-            {{ i18n.presetInProgress }}
-          </button>
-          <button
-            type="button"
-            class="tl-status-pop__preset"
             :class="{ 'tl-status-pop__preset--active': isPresetDone }"
             @click="selectPreset('done')"
           >
@@ -167,8 +159,6 @@ const isPresetUnfinished = computed(() => {
   return UNFINISHED_TASK_STATUSES.every((t) => checkedTypes.value.has(t))
 })
 
-const isPresetInProgress = computed(() => checkedTypes.value.size === 1 && checkedTypes.value.has("in_progress"))
-
 const isPresetDone = computed(() => checkedTypes.value.size === 1 && checkedTypes.value.has("done"))
 
 const isNonDefault = computed(() => !isPresetAll.value)
@@ -183,10 +173,13 @@ function isMarkerActive(marker: string): boolean {
 
 const displayLabel = computed(() => {
   if (isPresetAll.value) {
-    return i18n.filterAll
+    return i18n.presetAll || i18n.filterAll || "全部"
   }
   if (isPresetUnfinished.value) {
-    return i18n.presetUnfinished
+    return i18n.presetUnfinished || "未完成"
+  }
+  if (isPresetDone.value) {
+    return i18n.presetDone || i18n.statusDone || "完成"
   }
   if (checkedTypes.value.size === 1) {
     const single = [...checkedTypes.value][0]
@@ -232,16 +225,13 @@ const currentIconPath = computed(() => {
   return ICON_FILTER
 })
 
-function selectPreset(preset: "all" | "unfinished" | "in_progress" | "done") {
+function selectPreset(preset: "all" | "unfinished" | "done") {
   switch (preset) {
     case "all":
       emit("update:modelValue", "all")
       break
     case "unfinished":
       emit("update:modelValue", [...UNFINISHED_TASK_STATUSES])
-      break
-    case "in_progress":
-      emit("update:modelValue", ["in_progress"])
       break
     case "done":
       emit("update:modelValue", ["done"])

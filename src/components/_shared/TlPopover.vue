@@ -30,6 +30,7 @@ const emit = defineEmits<{ close: [] }>()
 
 const popRef = ref<HTMLElement | null>(null)
 const popStyle = ref<Record<string, string>>({})
+let isAttached = false
 
 function place() {
   const el = popRef.value
@@ -69,29 +70,47 @@ function onDocKeydown(event: KeyboardEvent) {
   }
 }
 
-function detach() {
-  document.removeEventListener("pointerdown", onDocPointerDown, true)
-  document.removeEventListener("keydown", onDocKeydown)
-  window.removeEventListener("resize", onReposition)
-}
-
 function onReposition() {
   place()
 }
 
-watch(() => props.open, async (open) => {
-  if (open) {
-    // 先在视口外渲染以测量高度，再定位
-    popStyle.value = { left: "-9999px", top: "0px", width: `${props.width}px` }
-    await nextTick()
-    place()
-    document.addEventListener("pointerdown", onDocPointerDown, true)
-    document.addEventListener("keydown", onDocKeydown)
-    window.addEventListener("resize", onReposition)
-  } else {
-    detach()
+function attach() {
+  if (isAttached) {
+    return
   }
-})
+  isAttached = true
+  document.addEventListener("pointerdown", onDocPointerDown, true)
+  document.addEventListener("keydown", onDocKeydown)
+  window.addEventListener("resize", onReposition)
+  window.addEventListener("scroll", onReposition, true)
+}
+
+function detach() {
+  if (!isAttached) {
+    return
+  }
+  isAttached = false
+  document.removeEventListener("pointerdown", onDocPointerDown, true)
+  document.removeEventListener("keydown", onDocKeydown)
+  window.removeEventListener("resize", onReposition)
+  window.removeEventListener("scroll", onReposition, true)
+}
+
+watch(
+  () => [props.open, props.anchor] as const,
+  async ([open, anchor]) => {
+    if (open && anchor) {
+      // 先在视口外渲染以测量高度，再定位
+      popStyle.value = { left: "-9999px", top: "0px", width: `${props.width}px` }
+      await nextTick()
+      place()
+      attach()
+    } else {
+      detach()
+    }
+  },
+  { immediate: true },
+)
 
 onBeforeUnmount(detach)
 </script>

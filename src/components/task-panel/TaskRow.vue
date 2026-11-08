@@ -15,7 +15,8 @@
       class="tl-check ariaLabel"
       role="button"
       :aria-label="i18n.statusFilter || '切换状态'"
-      @click.stop="menuOpen = !menuOpen"
+      @click.stop="onClickCheck"
+      @contextmenu.stop.prevent="openMenu"
     >
       <!-- 完成打勾 -->
       <TlIcon
@@ -84,7 +85,9 @@ import { usePlugin } from "@/main"
 const props = withDefaults(defineProps<{
   task: TaskItem
   keyword?: string
-}>(), { keyword: "" })
+  /** 是否点击状态图标弹出细分状态菜单（默认 false，直接切换待办与完成） */
+  clickStatusMenu?: boolean
+}>(), { keyword: "", clickStatusMenu: false })
 
 const emit = defineEmits<{
   toggle: [task: TaskItem]
@@ -114,6 +117,18 @@ const rowStyle = computed(() => {
     "--tl-sub-depth": subDepth,
   }
 })
+
+function onClickCheck() {
+  if (props.clickStatusMenu) {
+    openMenu()
+  } else {
+    emit("toggle", props.task)
+  }
+}
+
+function openMenu() {
+  menuOpen.value = !menuOpen.value
+}
 
 function onSelectMarker(marker: string) {
   menuOpen.value = false
