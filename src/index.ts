@@ -123,17 +123,14 @@ export default class TaskListPlugin extends Plugin {
         this.settingDialog = null
       },
     })
-    const sortTodoDesc = (this.i18n.settingsSortTodoFirstDesc as string) || ""
     setting.addItem({
       title: (this.i18n.settingsSortTodoFirst as string) || "Sort open tasks first",
-      description: sortTodoDesc,
+      description: (this.i18n.settingsSortTodoFirstDesc as string) || "",
       createActionElement: () => {
         const switchEl = document.createElement("input")
-        switchEl.className = "b3-switch fn__flex-center ariaLabel"
+        switchEl.className = "b3-switch fn__flex-center"
         switchEl.type = "checkbox"
         switchEl.checked = Boolean(this.config.sortTodoFirst)
-        switchEl.setAttribute("aria-label", sortTodoDesc)
-        switchEl.title = sortTodoDesc
         switchEl.addEventListener("change", () => {
           this.config.sortTodoFirst = switchEl.checked
           this.saveConfig()
@@ -141,17 +138,14 @@ export default class TaskListPlugin extends Plugin {
         return switchEl
       },
     })
-    const countUnfinishedDesc = (this.i18n.settingsCountUnfinishedDesc as string) || ""
     setting.addItem({
       title: (this.i18n.settingsCountUnfinished as string) || "Count open tasks",
-      description: countUnfinishedDesc,
+      description: (this.i18n.settingsCountUnfinishedDesc as string) || "",
       createActionElement: () => {
         const switchEl = document.createElement("input")
-        switchEl.className = "b3-switch fn__flex-center ariaLabel"
+        switchEl.className = "b3-switch fn__flex-center"
         switchEl.type = "checkbox"
         switchEl.checked = Boolean(this.config.countUnfinished)
-        switchEl.setAttribute("aria-label", countUnfinishedDesc)
-        switchEl.title = countUnfinishedDesc
         switchEl.addEventListener("change", () => {
           this.config.countUnfinished = switchEl.checked
           this.saveConfig()
@@ -159,17 +153,14 @@ export default class TaskListPlugin extends Plugin {
         return switchEl
       },
     })
-    const clickStatusMenuDesc = (this.i18n.settingsClickStatusMenuDesc as string) || ""
     setting.addItem({
       title: (this.i18n.settingsClickStatusMenu as string) || "Click icon to open status menu",
-      description: clickStatusMenuDesc,
+      description: (this.i18n.settingsClickStatusMenuDesc as string) || "",
       createActionElement: () => {
         const switchEl = document.createElement("input")
-        switchEl.className = "b3-switch fn__flex-center ariaLabel"
+        switchEl.className = "b3-switch fn__flex-center"
         switchEl.type = "checkbox"
         switchEl.checked = Boolean(this.config.clickStatusMenu)
-        switchEl.setAttribute("aria-label", clickStatusMenuDesc)
-        switchEl.title = clickStatusMenuDesc
         switchEl.addEventListener("change", () => {
           this.config.clickStatusMenu = switchEl.checked
           this.saveConfig()
@@ -177,20 +168,17 @@ export default class TaskListPlugin extends Plugin {
         return switchEl
       },
     })
-    const limitDesc = (this.i18n.settingsLimitDesc as string) || ""
     setting.addItem({
       title: (this.i18n.settingsLimit as string) || "Aggregation limit",
-      description: limitDesc,
+      description: (this.i18n.settingsLimitDesc as string) || "",
       createActionElement: () => {
         const input = document.createElement("input")
-        input.className = "b3-text-field fn__flex-center fn__size200 ariaLabel"
+        input.className = "b3-text-field fn__flex-center fn__size200"
         input.type = "number"
         input.min = "100"
         input.max = "100000"
         input.step = "100"
         input.value = String(this.config.limit)
-        input.setAttribute("aria-label", limitDesc)
-        input.title = limitDesc
         input.addEventListener("change", () => {
           const value = Number.parseInt(input.value, 10)
           if (Number.isFinite(value) && value >= 100) {
@@ -207,7 +195,9 @@ export default class TaskListPlugin extends Plugin {
   }
 
   /**
-   * 为设置项行与标题绑定 Tooltip（思源 ariaLabel 机制），鼠标悬浮在设置项上时呈现简要说明。
+   * 为设置项行绑定 Tooltip（思源 ariaLabel 机制），鼠标悬浮在设置项上时呈现简要说明。
+   * 注意：通道唯一（ariaLabel + aria-label），绝不使用原生 title 属性，避免触发浏览器原生与思源双重 Tooltip。
+   * 仅绑定在外层 .config-item 上，行内子元素（标题、开关）通过最近祖先自动继承，避免嵌套重复触发。
    */
   private bindSettingTooltips() {
     const dialogEl = (this.settingDialog as any)?.dialog?.element as HTMLElement | null | undefined
@@ -228,13 +218,13 @@ export default class TaskListPlugin extends Plugin {
       }
       itemEl.classList.add("ariaLabel")
       itemEl.setAttribute("aria-label", desc)
-      itemEl.setAttribute("title", desc)
+      itemEl.removeAttribute("title")
 
       const titleEl = itemEl.querySelector<HTMLElement>(".config-name")
       if (titleEl) {
-        titleEl.classList.add("ariaLabel")
-        titleEl.setAttribute("aria-label", desc)
-        titleEl.setAttribute("title", desc)
+        titleEl.classList.remove("ariaLabel")
+        titleEl.removeAttribute("aria-label")
+        titleEl.removeAttribute("title")
       }
     })
   }
