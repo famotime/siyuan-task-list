@@ -118,6 +118,7 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
       status: resolveTaskStatus(marker),
       box: row.box,
       rootId: row.root_id,
+      docPath: row.path,
       hpath: row.hpath,
       parentId: row.parent_id,
       parentTaskId,
@@ -293,7 +294,7 @@ function makeGroup(
   total: number,
   done: number,
   statusCounts?: TaskStatusCounts,
-  extra?: { parentPath?: string, hpath?: string, box?: string },
+  extra?: { parentPath?: string, hpath?: string, box?: string, docId?: string, docPath?: string },
 ): TaskGroup {
   return { key, kind, title, level, listGroups, children, total, done, statusCounts, ...extra }
 }
@@ -317,6 +318,7 @@ export interface GroupingOptions {
 export interface DocSortEntry {
   rootId: string
   hpath: string
+  docPath?: string
   tasks: TaskItem[]
 }
 
@@ -389,21 +391,24 @@ export function buildTaskGroups(
   )
 
   // 文档 -> 任务
-  const byDoc = new Map<string, { box: string, hpath: string, tasks: TaskItem[] }>()
+  const byDoc = new Map<string, { box: string, hpath: string, docPath?: string, tasks: TaskItem[] }>()
   for (const task of tasks) {
     const doc = byDoc.get(task.rootId)
     if (doc) {
       doc.tasks.push(task)
+      if (!doc.docPath && task.docPath) {
+        doc.docPath = task.docPath
+      }
     } else {
-      byDoc.set(task.rootId, { box: task.box, hpath: task.hpath || "/", tasks: [task] })
+      byDoc.set(task.rootId, { box: task.box, hpath: task.hpath || "/", docPath: task.docPath, tasks: [task] })
     }
   }
 
   // 笔记本 -> 文档
-  const byBox = new Map<string, { rootId: string, hpath: string, tasks: TaskItem[] }[]>()
+  const byBox = new Map<string, { rootId: string, hpath: string, docPath?: string, tasks: TaskItem[] }[]>()
   for (const [rootId, doc] of byDoc) {
     const docs = byBox.get(doc.box)
-    const entry = { rootId, hpath: doc.hpath, tasks: doc.tasks }
+    const entry = { rootId, hpath: doc.hpath, docPath: doc.docPath, tasks: doc.tasks }
     if (docs) {
       docs.push(entry)
     } else {
@@ -438,6 +443,7 @@ export function buildTaskGroups(
         levels,
         sortTodoFirst,
         statusFilter,
+        doc.docPath,
       )
       nbTotal += res.total
       nbDone += res.done
@@ -485,6 +491,7 @@ function buildDocGroup(
   levels: ReadonlySet<number>,
   sortTodoFirst = false,
   statusFilter: StatusFilter = "all",
+  docPath?: string,
 ): { group: TaskGroup | null, hasVisible: boolean, total: number, done: number, statusCounts: TaskStatusCounts } {
   const { parentPath, leaf } = splitHpath(hpath)
   const title = leaf || untitledLabel
@@ -506,7 +513,7 @@ function buildDocGroup(
           total,
           done,
           statusCounts,
-          { parentPath, hpath, box },
+          { parentPath, hpath, box, docId: rootId, docPath },
         )
       : null
     return { group, hasVisible, total, done, statusCounts }
@@ -666,7 +673,7 @@ function buildDocGroup(
     docTotal,
     docDone,
     docStatusCounts,
-    { parentPath, hpath, box },
+    { parentPath, hpath, box, docId: rootId, docPath },
   )
 
   return { group, hasVisible: true, total: docTotal, done: docDone, statusCounts: docStatusCounts }

@@ -70,12 +70,14 @@
           :keyword="keyword"
           :count-unfinished="countUnfinished"
           :click-status-menu="clickStatusMenu"
+          :favorited-doc-ids="favoritedDocIds"
           @toggle="onToggle"
           @update-marker="onUpdateMarker"
           @jump="onJump"
           @toggle-fold="onToggleFold"
           @toggle-fold-all="onToggleFoldAll"
           @exclude-doc="onExcludeDoc"
+          @toggle-doc-favorite="onToggleDocFavorite"
         />
       </template>
     </div>
@@ -94,9 +96,10 @@ import {
   lsNotebooks,
   pushErrMsg,
   pushMsg,
+  sql,
   updateTaskListItemMarker,
 } from "@/api"
-import { normalizeExcludePaths } from "@/data/scope"
+import { esc, normalizeExcludePaths } from "@/data/scope"
 import { addHistoryRecord, markHistoryUndone, sanitizeHistory } from "@/data/history"
 import {
   extractCustomMarkers,
@@ -104,7 +107,7 @@ import {
   markerForStatus,
   resolveTaskStatus,
 } from "@/data/status"
-import { isFavoriteMatching } from "@/utils/favorite"
+import { createDefaultDocFavorite, isFavoriteMatching } from "@/utils/favorite"
 import { collectGroupKeys } from "@/utils/tree"
 import {
   buildTaskGroups,
@@ -639,6 +642,66 @@ function onExcludeDoc(group: TaskGroup) {
 }
 
 // ---------- 常用路径收藏 ----------
+
+const favoritedDocIds = computed(() => new Set(favorites.value.map((f) => f.docId)))
+
+async function onToggleDocFavorite(group: TaskGroup) {
+  const docId = group.docId || group.key.replace(/^d:/, "")
+  if (!docId) {
+    return
+  }
+
+  const matchIdx = favorites.value.findIndex((fav) => fav.docId === docId)
+  if (matchIdx >= 0) {
+    favorites.value.splice(matchIdx, 1)
+    favorites.value = [...favorites.value]
+    plugin.config.favorites = [...favorites.value]
+    plugin.saveConfig()
+    pushMsg(i18n.unfavorited || "已取消收藏", 3000)
+    return
+  }
+
+  if (favorites.value.length >= 10) {
+    pushMsg(i18n.favoriteLimitReached || "收藏已达 10 个上限，请先删除不需要的项", 4000)
+    return
+  }
+
+  let docPath = group.docPath
+  let box = group.box
+  let hpath = group.hpath
+  let title = group.title
+
+  if (!docPath || !box) {
+    try {
+      const rows = await sql<{ box: string, path: string, hpath: string, content: string }>(
+        `SELECT box, path, hpath, content FROM blocks WHERE id='${esc(docId)}' AND type='d' LIMIT 1`,
+      )
+      if (rows && rows.length > 0) {
+        const row = rows[0]
+        box = box || row.box
+        docPath = docPath || row.path
+        hpath = hpath || row.hpath
+        title = title || row.content || row.hpath.split("/").pop() || ""
+      }
+    } catch {
+      // 容错兜底
+    }
+  }
+
+  const newFav = createDefaultDocFavorite({
+    docId,
+    box: box || "",
+    path: docPath || "",
+    hpath: hpath || "",
+    title: title || "",
+    untitledLabel: i18n.untitledGroup || "未命名文档",
+  })
+
+  favorites.value = [newFav, ...favorites.value]
+  plugin.config.favorites = [...favorites.value]
+  plugin.saveConfig()
+  pushMsg(i18n.favorited || "已添加到常用路径收藏", 3000)
+}
 
 const isCurrentFavorited = computed(() => {
   if (scope.value.mode !== "path" || !scope.value.docId) {

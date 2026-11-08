@@ -53,6 +53,20 @@
           class="tl-group__actions"
         >
           <button
+            v-if="canFavoriteDoc(group)"
+            type="button"
+            class="tl-group__action-btn tl-group__action-btn--fav ariaLabel"
+            :class="{ 'tl-group__action-btn--fav--active': isDocFavorited(group) }"
+            :aria-label="isDocFavorited(group) ? (i18n.unfavorite || '取消收藏') : (i18n.favoriteDocBtn || '添加到常用路径收藏')"
+            @click.stop="emit('toggleDocFavorite', group)"
+          >
+            <TlIcon
+              :path="STAR_PATH"
+              class="tl-group__action-icon"
+              :class="{ 'tl-icon--filled': isDocFavorited(group) }"
+            />
+          </button>
+          <button
             v-if="canFoldAll(group)"
             type="button"
             class="tl-group__action-btn ariaLabel"
@@ -107,12 +121,14 @@
           :keyword="keyword"
           :count-unfinished="countUnfinished"
           :click-status-menu="clickStatusMenu"
+          :favorited-doc-ids="favoritedDocIds"
           @toggle="emit('toggle', $event)"
           @update-marker="(t, m) => emit('updateMarker', t, m)"
           @jump="emit('jump', $event)"
           @toggle-fold="emit('toggleFold', $event)"
           @toggle-fold-all="emit('toggleFoldAll', $event)"
           @exclude-doc="emit('excludeDoc', $event)"
+          @toggle-doc-favorite="emit('toggleDocFavorite', $event)"
         />
       </div>
     </div>
@@ -141,6 +157,8 @@ const props = withDefaults(defineProps<{
   countUnfinished?: boolean
   /** 是否点击状态图标弹出细分状态菜单（默认 false，直接切换待办与完成） */
   clickStatusMenu?: boolean
+  /** 当前已收藏的文档 id 集合（用于文档行收藏高亮） */
+  favoritedDocIds?: Set<string>
 }>(), { depth: 0, canExclude: false, keyword: "", countUnfinished: false, clickStatusMenu: false })
 
 const emit = defineEmits<{
@@ -150,6 +168,7 @@ const emit = defineEmits<{
   toggleFold: [key: string]
   toggleFoldAll: [group: TaskGroup]
   excludeDoc: [group: TaskGroup]
+  toggleDocFavorite: [group: TaskGroup]
 }>()
 
 const i18n = usePlugin().i18n
@@ -208,6 +227,20 @@ function countTooltip(group: TaskGroup): string {
 const ICON_CHEVRONS_DOWN = "m7 6 5 5 5-5 M7 13l5 5 5-5"
 const ICON_CHEVRONS_UP = "m17 11-5-5-5 5 M17 18l-5-5-5 5"
 const ICON_EXCLUDE = "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20 M4.93 4.93l14.14 14.14"
+const STAR_PATH = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+
+function canFavoriteDoc(group: TaskGroup): boolean {
+  return group.kind === "doc"
+}
+
+function getDocId(group: TaskGroup): string {
+  return group.docId || group.key.replace(/^d:/, "")
+}
+
+function isDocFavorited(group: TaskGroup): boolean {
+  if (group.kind !== "doc") return false
+  return Boolean(props.favoritedDocIds?.has(getDocId(group)))
+}
 
 /** 仅在存在标题子层级时提供全部展开/折叠按钮 */
 function canFoldAll(group: TaskGroup): boolean {
@@ -221,7 +254,7 @@ function canExcludeDoc(group: TaskGroup): boolean {
 
 /** 是否拥有悬浮操作栏 */
 function hasActions(group: TaskGroup): boolean {
-  return canFoldAll(group) || canExcludeDoc(group)
+  return canFavoriteDoc(group) || canFoldAll(group) || canExcludeDoc(group)
 }
 
 /** 判断该文档是否已完全展开（自身展开且下属所有标题层级皆展开） */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { arraysEqual, isFavoriteMatching } from "@/utils/favorite"
+import { arraysEqual, createDefaultDocFavorite, isFavoriteMatching } from "@/utils/favorite"
 import type { PathFavorite } from "@/data/types"
 
 function createMockFavorite(overrides: Partial<PathFavorite> = {}): PathFavorite {
@@ -133,6 +133,52 @@ describe("src/utils/favorite.ts", () => {
           status: ["todo"],
         }),
       ).toBe(false)
+    })
+  })
+
+  describe("createDefaultDocFavorite", () => {
+    it("should create standard default favorite with includeSubdocs enabled and all statuses", () => {
+      const fav = createDefaultDocFavorite({
+        docId: "doc-99",
+        box: "box-nb",
+        path: "/20240101-doc.sy",
+        hpath: "/Folder/My Target Doc",
+        title: "My Target Doc",
+      })
+
+      expect(fav.docId).toBe("doc-99")
+      expect(fav.box).toBe("box-nb")
+      expect(fav.path).toBe("/20240101-doc.sy")
+      expect(fav.hpath).toBe("/Folder/My Target Doc")
+      expect(fav.title).toBe("My Target Doc")
+      expect(fav.includeSubdocs).toBe(true)
+      expect(fav.includeLinked).toBe(false)
+      expect(fav.status).toBe("all")
+      expect(fav.showHeadings).toBe(true)
+      expect(fav.headingLevels).toEqual([1, 2, 3, 4, 5, 6])
+      expect(fav.id).toMatch(/^fav-\d+-[a-z0-9]+$/)
+      expect(typeof fav.createdAt).toBe("number")
+    })
+
+    it("should resolve leaf name correctly from hpath or fallback to title/untitledLabel", () => {
+      const fav1 = createDefaultDocFavorite({
+        docId: "doc-1",
+        box: "box-1",
+        path: "/1.sy",
+        hpath: "/A/B/Leaf",
+        title: "Raw Title",
+      })
+      expect(fav1.title).toBe("Leaf")
+
+      const fav2 = createDefaultDocFavorite({
+        docId: "doc-2",
+        box: "box-1",
+        path: "/2.sy",
+        hpath: "",
+        title: "",
+        untitledLabel: "自定义无标题",
+      })
+      expect(fav2.title).toBe("自定义无标题")
     })
   })
 })

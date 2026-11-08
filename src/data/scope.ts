@@ -16,7 +16,7 @@ import type {
 
 const IN_CHUNK = 400
 
-function esc(value: string): string {
+export function esc(value: string): string {
   return value.replace(/'/g, "''")
 }
 
@@ -261,6 +261,7 @@ export interface TaskRow {
   parent_id: string
   root_id: string
   box: string
+  path: string
   hpath: string
   content: string
   markdown: string

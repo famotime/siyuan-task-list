@@ -54,3 +54,37 @@ export function isFavoriteMatching(
   }
   return true
 }
+
+/**
+ * 构造一个文档的默认常用路径收藏项（用于当前文档/笔记本/所有笔记本视图下的快速收藏）。
+ * 统一采用标准默认预设：全部状态任务、开启包含子文档、不包含反链、展开 1-6 全级标题。
+ */
+export function createDefaultDocFavorite(params: {
+  docId: string
+  box: string
+  path: string
+  hpath: string
+  title: string
+  untitledLabel?: string
+}): PathFavorite {
+  const leafTitle
+    = params.hpath.replace(/^\/+/, "").split("/").filter(Boolean).pop()
+    || params.title
+    || params.untitledLabel
+    || "未命名文档"
+
+  return {
+    id: `fav-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    docId: params.docId,
+    box: params.box,
+    path: params.path,
+    hpath: params.hpath,
+    title: leafTitle,
+    includeSubdocs: true,
+    includeLinked: false,
+    status: "all",
+    showHeadings: true,
+    headingLevels: [1, 2, 3, 4, 5, 6],
+    createdAt: Date.now(),
+  }
+}

@@ -59,6 +59,8 @@ export interface TaskItem {
   box: string
   /** 所在文档 id */
   rootId: string
+  /** 文档底层存储路径（.sy 路径，收藏与路径范围回溯使用） */
+  docPath?: string
   /** 文档可读路径 */
   hpath: string
   /** 直接父块（列表块）id */
@@ -91,6 +93,10 @@ export interface TaskGroup {
   /** 分组种类：渲染层据此决定图标（doc）与 # 层级前缀（heading） */
   kind: "notebook" | "doc" | "heading"
   title: string
+  /** doc 档：根文档 id */
+  docId?: string
+  /** doc 档：底层 .sy 存储路径 */
+  docPath?: string
   /** doc 档：所在笔记本 box id */
   box?: string
   /** doc 档：去掉叶名后的可读父路径（如 "/传送目录"，根文档为空串） */

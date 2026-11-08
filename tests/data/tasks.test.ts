@@ -254,8 +254,31 @@ describe("src/data/tasks.ts", () => {
       expect(docGroup.kind).toBe("doc")
       expect(docGroup.title).toBe("Today")
       expect(docGroup.parentPath).toBe("Notes")
+      expect(docGroup.docId).toBe("doc-1")
       expect(docGroup.children).toHaveLength(0) // No heading children
       expect(docGroup.listGroups[0].tasks).toHaveLength(2)
+    })
+
+    it("should populate docId and docPath on doc groups for favorites integration", () => {
+      const tasks = [
+        createMockTask({
+          id: "t1",
+          rootId: "doc-abc",
+          docPath: "/20240101120000-xyz.sy",
+          box: "nb-1",
+          hpath: "/Notes/Design",
+          done: false,
+        }),
+      ]
+      const flatGroups = buildTaskGroups(tasks, notebookNames, "Untitled", { showHeadings: false })
+      const flatDoc = flatGroups[0].children[0]
+      expect(flatDoc.docId).toBe("doc-abc")
+      expect(flatDoc.docPath).toBe("/20240101120000-xyz.sy")
+
+      const headingGroups = buildTaskGroups(tasks, notebookNames, "Untitled", { showHeadings: true })
+      const headingDoc = headingGroups[0].children[0]
+      expect(headingDoc.docId).toBe("doc-abc")
+      expect(headingDoc.docPath).toBe("/20240101120000-xyz.sy")
     })
 
     it("should build hierarchical heading groups", () => {
@@ -381,6 +404,7 @@ describe("src/data/tasks.ts", () => {
             parent_id: "list-1",
             root_id: "doc-1",
             box: "nb-1",
+            path: "/doc-1.sy",
             hpath: "/MyDoc",
             content: "Do homework",
             markdown: "- [ ] Do homework",
@@ -413,6 +437,7 @@ describe("src/data/tasks.ts", () => {
         content: "Do homework",
         done: false,
         marker: " ",
+        docPath: "/doc-1.sy",
         srcOrder: 0,
       })
     })

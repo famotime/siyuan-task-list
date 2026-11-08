@@ -1139,6 +1139,12 @@
   }
 }
 
+.tl-group__action-btn--fav {
+  &--active {
+    color: var(--b3-theme-primary);
+  }
+}
+
 .tl-group__action-btn--exclude {
   color: var(--b3-theme-error, #e06c75);
 
