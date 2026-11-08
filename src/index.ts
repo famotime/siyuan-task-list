@@ -13,6 +13,8 @@ import "@/index.scss"
 
 export type { TaskListConfig } from "@/config"
 
+export const HISTORY_STORAGE_NAME = "history.json"
+
 const CUSTOM_ICON_SVG = `<symbol id="iconTaskList" viewBox="0 0 1024 1024">
   <rect x="96" y="160" width="288" height="288" rx="48" fill="none" stroke="currentColor" stroke-width="72"/>
   <path fill="none" stroke="currentColor" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" d="M176 304l64 64 128-128"/>
@@ -91,6 +93,7 @@ export default class TaskListPlugin extends Plugin {
   async uninstall() {
     try {
       await this.removeData(STORAGE_NAME)
+      await this.removeData(HISTORY_STORAGE_NAME).catch(() => {})
     } catch (e) {
       pushErrMsg(
         ((this.i18n.uninstallDataRemoveFailed as string) || "Failed to remove plugin data of ${name} on uninstall: ${error}")

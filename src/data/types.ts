@@ -153,6 +153,21 @@ export interface PathFavorite {
   createdAt: number
 }
 
+/** 任务状态变更历史记录项 */
+export interface TaskHistoryItem {
+  id: string
+  taskId: string
+  rootId?: string
+  docTitle?: string
+  content: string
+  fromMarker: string
+  toMarker: string
+  fromStatus: TaskStatus
+  toStatus: TaskStatus
+  timestamp: number
+  undone?: boolean
+}
+
 export interface ScopeSelection {
   mode: ScopeMode
   /** activeDoc / path 档：根文档 id */

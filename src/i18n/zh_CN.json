@@ -79,5 +79,17 @@
   "sortCreatedDesc": "创建时间：最新在前",
   "sortCreatedAsc": "创建时间：最早在前",
   "sortTitleAsc": "文件名：正序 (A→Z)",
-  "sortTitleDesc": "文件名：倒序 (Z→A)"
+  "sortTitleDesc": "文件名：倒序 (Z→A)",
+  "historyTitle": "操作历史",
+  "emptyHistory": "暂无操作历史",
+  "clearHistory": "清空历史",
+  "clearHistoryConfirm": "确定清空全部操作历史记录吗？",
+  "undo": "撤销",
+  "undone": "已撤销",
+  "timeJustNow": "刚刚",
+  "timeMinutesAgo": "${n}分钟前",
+  "timeHoursAgo": "${n}小时前",
+  "timeDaysAgo": "${n}天前",
+  "undoSuccess": "已还原任务状态",
+  "undoFailed": "还原任务状态失败"
 }

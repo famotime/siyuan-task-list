@@ -79,5 +79,17 @@
   "sortCreatedDesc": "Created: Newest first",
   "sortCreatedAsc": "Created: Oldest first",
   "sortTitleAsc": "File name: A to Z",
-  "sortTitleDesc": "File name: Z to A"
+  "sortTitleDesc": "File name: Z to A",
+  "historyTitle": "Operation History",
+  "emptyHistory": "No operation history",
+  "clearHistory": "Clear history",
+  "clearHistoryConfirm": "Are you sure you want to clear all operation history?",
+  "undo": "Undo",
+  "undone": "Undone",
+  "timeJustNow": "Just now",
+  "timeMinutesAgo": "${n}m ago",
+  "timeHoursAgo": "${n}h ago",
+  "timeDaysAgo": "${n}d ago",
+  "undoSuccess": "Task status reverted",
+  "undoFailed": "Failed to revert task status"
 }

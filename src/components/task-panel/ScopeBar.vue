@@ -45,6 +45,16 @@
       <TlIcon path="m3 16 4 4 4-4M7 20V4M11 4h10M11 8h7M11 12h4" />
     </button>
     <button
+      ref="historyBtnRef"
+      type="button"
+      class="tl-icon-btn ariaLabel"
+      :class="{ 'tl-icon-btn--active': historyOpen }"
+      :aria-label="i18n.historyTitle || '操作历史'"
+      @click="historyOpen = !historyOpen"
+    >
+      <TlIcon path="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+    </button>
+    <button
       type="button"
       class="tl-icon-btn tl-scopebar__refresh ariaLabel"
       :class="{ 'tl-scopebar__refresh--spinning': loading }"
@@ -53,6 +63,21 @@
     >
       <TlIcon path="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
     </button>
+
+    <TlPopover
+      :open="historyOpen"
+      :anchor="historyBtnRef"
+      :width="320"
+      align="right"
+      @close="historyOpen = false"
+    >
+      <HistoryList
+        :items="history || []"
+        @jump="onJumpHistory"
+        @undo="emit('undo-history', $event)"
+        @clear="emit('clear-history')"
+      />
+    </TlPopover>
 
     <TlPopover
       :open="sortOpen"
@@ -213,6 +238,7 @@ import TlPopover from "@/components/_shared/TlPopover.vue"
 import DocPicker from "@/components/task-panel/scope/DocPicker.vue"
 import ExcludeManager from "@/components/task-panel/scope/ExcludeManager.vue"
 import FavoriteList from "@/components/task-panel/scope/FavoriteList.vue"
+import HistoryList from "@/components/task-panel/history/HistoryList.vue"
 import { sql } from "@/api"
 import type {
   DocEntry,
@@ -221,6 +247,7 @@ import type {
   ScopeMode,
   ScopeSelection,
   StatusFilter,
+  TaskHistoryItem,
 } from "@/data/types"
 import type { FavoriteMatchState } from "@/utils/favorite"
 import { usePlugin } from "@/main"
@@ -241,6 +268,7 @@ const props = defineProps<{
   headingLevels?: number[]
   docSort?: DocSortMode
   loading?: boolean
+  history?: TaskHistoryItem[]
 }>()
 
 const emit = defineEmits<{
@@ -250,15 +278,25 @@ const emit = defineEmits<{
   'toggle-favorite': []
   'apply-favorite': [fav: PathFavorite]
   'remove-favorite': [id: string]
+  'jump-history': [item: TaskHistoryItem]
+  'undo-history': [item: TaskHistoryItem]
+  'clear-history': []
 }>()
 
 const i18n = usePlugin().i18n
 
 const popoverOpen = ref(false)
 const sortOpen = ref(false)
+const historyOpen = ref(false)
 const chipRef = ref<HTMLElement | null>(null)
 const sortBtnRef = ref<HTMLElement | null>(null)
+const historyBtnRef = ref<HTMLElement | null>(null)
 const docPickerRef = ref<InstanceType<typeof DocPicker> | null>(null)
+
+function onJumpHistory(item: TaskHistoryItem) {
+  historyOpen.value = false
+  emit('jump-history', item)
+}
 
 const sortOptions = computed(() => [
   { value: "updated-desc" as const, text: i18n.sortUpdatedDesc || "更新时间：最新在前" },

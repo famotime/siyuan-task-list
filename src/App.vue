@@ -11,10 +11,14 @@
       :status-filter="statusFilter"
       :show-headings="showHeadings"
       :heading-levels="headingLevels"
+      :history="historyList"
       @refresh="refresh()"
       @toggle-favorite="onToggleFavorite"
       @apply-favorite="onApplyFavorite"
       @remove-favorite="onRemoveFavorite"
+      @jump-history="onJumpHistory"
+      @undo-history="onUndoHistory"
+      @clear-history="onClearHistory"
     />
     <FilterBar
       v-model:status="statusFilter"
@@ -93,6 +97,7 @@ import {
   updateTaskListItemMarker,
 } from "@/api"
 import { normalizeExcludePaths } from "@/data/scope"
+import { addHistoryRecord, markHistoryUndone, sanitizeHistory } from "@/data/history"
 import {
   extractCustomMarkers,
   isTaskDone,
@@ -113,9 +118,11 @@ import type {
   PathFavorite,
   ScopeSelection,
   TaskGroup,
+  TaskHistoryItem,
   TaskItem,
   TaskStatus,
 } from "@/data/types"
+import { HISTORY_STORAGE_NAME } from "@/index"
 import { usePlugin } from "@/main"
 
 const plugin = usePlugin()
@@ -130,8 +137,13 @@ const collection = ref<TaskCollection | null>(null)
 const loading = ref(false)
 const errorMessage = ref("")
 const truncated = ref(false)
+const historyList = ref<TaskHistoryItem[]>([])
 /** 当前文档档解析出的文档 id（用于 switch-protyle 变更检测与范围摘要回显） */
 const resolvedDocId = ref<string>("")
+
+async function saveHistory() {
+  await plugin.saveData(HISTORY_STORAGE_NAME, historyList.value).catch(() => {})
+}
 
 // ---------- 视图状态（标题分组层级 + 折叠态 + 文档排序，持久化到插件 config） ----------
 
@@ -347,6 +359,24 @@ async function flushPendingWrites() {
     } else {
       await batchUpdateTaskListItemMarker(toSave.map((item) => ({ id: item.id, marker: item.marker })))
     }
+
+    // 落盘成功：记入操作历史
+    for (const item of toSave) {
+      historyList.value = addHistoryRecord(historyList.value, {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        taskId: item.id,
+        rootId: item.task.rootId,
+        docTitle: item.task.hpath || "",
+        content: item.task.content || "",
+        fromMarker: item.initialState.marker,
+        toMarker: item.marker,
+        fromStatus: item.initialState.status,
+        toStatus: item.task.status,
+        timestamp: Date.now(),
+      })
+    }
+    void saveHistory()
+
     // 落盘成功：在内核索引稳定后做一次确认刷新
     clearTimeout(confirmTimer)
     confirmTimer = setTimeout(() => {
@@ -409,6 +439,44 @@ function onJump(task: TaskItem) {
   })
 }
 
+function onJumpHistory(item: TaskHistoryItem) {
+  openTab({
+    app: plugin.app,
+    doc: {
+      id: item.taskId,
+      action: ["cb-get-focus", "cb-get-context"],
+    },
+    afterOpen: (model: any) => flashBlock(model, item.taskId),
+  })
+}
+
+async function onUndoHistory(item: TaskHistoryItem) {
+  if (item.undone) {
+    return
+  }
+  try {
+    const currentTask = collection.value?.tasks.find((t) => t.id === item.taskId)
+    if (currentTask) {
+      await onUpdateMarker(currentTask, item.fromMarker)
+    } else {
+      await updateTaskListItemMarker(item.taskId, item.fromMarker)
+    }
+    historyList.value = markHistoryUndone(historyList.value, item.id)
+    await saveHistory()
+    pushMsg(i18n.undoSuccess || "已还原任务状态", 3000)
+  } catch (err: any) {
+    pushErrMsg(
+      (i18n.undoFailed || "还原任务状态失败") + ": " + (err?.message ?? String(err)),
+      4000,
+    )
+  }
+}
+
+async function onClearHistory() {
+  historyList.value = []
+  await saveHistory()
+}
+
 /** 目标块渲染完成后加一次性闪烁框（约 1.8s 后自动移除） */
 function flashBlock(model: any, blockId: string) {
   const protyle = model?.editor?.protyle
@@ -462,6 +530,8 @@ onMounted(async () => {
   countUnfinished.value = Boolean(plugin.config.countUnfinished)
   clickStatusMenu.value = Boolean(plugin.config.clickStatusMenu)
   favorites.value = Array.isArray(plugin.config.favorites) ? [...plugin.config.favorites] : []
+  const savedHistory = await plugin.loadData(HISTORY_STORAGE_NAME).catch(() => null)
+  historyList.value = sanitizeHistory(savedHistory)
   try {
     const result = await lsNotebooks()
     notebooks.value = (result?.notebooks ?? [])
