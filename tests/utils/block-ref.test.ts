@@ -85,4 +85,44 @@ describe("block reference text projection", () => {
     expect(projectBlockReferences(source, parseBlockReferences(source), new Map()).referenceRanges)
       .toEqual([])
   })
+
+  it("removes exported text spans around an icon while keeping the reference underline aligned", () => {
+    const source = `<span data-type="text">📄</span>((${id} "论文标题"))`
+    const { text, referenceRanges } = projectBlockReferences(source, parseBlockReferences(source), new Map())
+    expect(text).toBe("📄论文标题")
+    expect(referenceRanges.map((range) => text.slice(range.start, range.end))).toEqual(["论文标题"])
+    expect(highlightText(text, "标题", "tl-highlight", referenceRanges)).toBe(
+      '📄<span class="tl-block-ref">论文</span><mark class="tl-highlight"><span class="tl-block-ref">标题</span></mark>',
+    )
+  })
+
+  it("handles nested or surrounding spans, quoted greater-than signs, and entity text", () => {
+    const source = `<span data-type="text" title="1 > 0">📄<span data-type='strong'>A &amp; B</span> ((${id} '引用'))</span> <span data-type="text">末尾</span>`
+    const { text, referenceRanges } = projectBlockReferences(source, parseBlockReferences(source), new Map())
+    expect(text).toBe("📄A & B 引用 末尾")
+    expect(referenceRanges.map((range) => text.slice(range.start, range.end))).toEqual(["引用"])
+    expect(display('<span data-type="text">&#128196; &lt;目标&gt;</span>')).toBe("📄 <目标>")
+    expect(display('<span data-type="text">只有图标 📄</span>')).toBe("只有图标 📄")
+  })
+
+  it("preserves code and escaped span examples without reinterpreting decoded markup", () => {
+    const literal = '<span data-type="text">📄</span>'
+    const examples = [
+      `\`${literal} ((${id} '示例'))\``,
+      `\`\`${literal} \` &amp;\`\``,
+      String.raw`\<span data-type="text">📄\</span>`,
+    ]
+    for (const example of examples) {
+      expect(display(example)).toBe(example)
+    }
+    expect(display('&lt;span data-type=&quot;text&quot;&gt;📄&lt;/span&gt;')).toBe(literal)
+    expect(display('比较 <目标> 和 1 < 2，不是包装')).toBe('比较 <目标> 和 1 < 2，不是包装')
+  })
+
+  it("does not parse reference-shaped span attribute values as visible references", () => {
+    const source = `<span data-type="text" title="((${id} '属性'))">📄</span>正文`
+    const { text, referenceRanges } = projectBlockReferences(source, parseBlockReferences(source), new Map())
+    expect(text).toBe("📄正文")
+    expect(referenceRanges).toEqual([])
+  })
 })

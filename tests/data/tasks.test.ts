@@ -450,7 +450,7 @@ describe("src/data/tasks.ts", () => {
           id: "parent-task", parent_id: "list-1", root_id: "doc-1", box: "nb-1",
           path: "/doc-1.sy", hpath: "/MyDoc", updated: "20261113",
           content: "阅读 参考资料 子任务内容",
-          markdown: `- [/] 阅读 ((${refId} '参考资料')) 和 ((${refId}))\n  - [ ] 子任务内容`,
+          markdown: `- [/] <span data-type="text">📄</span>阅读 ((${refId} '参考资料')) 和 ((${refId}))\n  - [ ] 子任务内容`,
         }],
         truncated: false,
         limit: 0,
@@ -465,13 +465,15 @@ describe("src/data/tasks.ts", () => {
 
       const { tasks } = await collectTasks({ mode: "notebook", box: "nb-1" }, 2000)
 
-      expect(tasks[0]).toMatchObject({ content: "阅读 参考资料 和 目标正文", marker: "/", status: "in_progress" })
+      expect(tasks[0]).toMatchObject({ content: "📄阅读 参考资料 和 目标正文", marker: "/", status: "in_progress" })
       expect(tasks[0].blockRefRanges.map((range) => tasks[0].content.slice(range.start, range.end)))
         .toEqual(["参考资料", "目标正文"])
       expect(filterTasksByKeyword(tasks, "参考资料")).toHaveLength(1)
       expect(filterTasksByKeyword(tasks, "目标正文")).toHaveLength(1)
       expect(filterTasksByKeyword(tasks, "子任务内容")).toHaveLength(0)
       expect(filterTasksByKeyword(tasks, refId)).toHaveLength(0)
+      expect(filterTasksByKeyword(tasks, "📄阅读")).toHaveLength(1)
+      expect(filterTasksByKeyword(tasks, "data-type")).toHaveLength(0)
     })
   })
 
