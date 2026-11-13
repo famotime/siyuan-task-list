@@ -3,6 +3,7 @@
  * 查询编排：范围谓词 → 任务主查询 → 标题归属解析 + 源顺序解析 → 组装视图模型。
  */
 import { lsNotebooks, sql } from "@/api"
+import { resolveTaskContents } from "@/data/block-ref"
 import { resolveHeadingPaths } from "@/data/heading"
 import { resolveDocBlockOrders } from "@/data/order"
 import { buildTaskQuery, queryTaskRows } from "@/data/scope"
@@ -95,14 +96,16 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
     }
   }
 
-  const [headingRes, orderRes, docMetas] = await Promise.all([
+  const parsedLines = rows.map((row) => parseTaskLine(row.markdown))
+  const [headingRes, orderRes, docMetas, contents] = await Promise.all([
     resolveHeadingPaths(parentRootIds),
     resolveDocBlockOrders(docIds, [...parentRootIds.keys()]),
     resolveDocMetas(docIds),
+    resolveTaskContents(rows.map((row, i) => (parsedLines[i]?.text ?? row.content ?? "").trim())),
   ])
 
-  const tasks: TaskItem[] = rows.map((row) => {
-    const parsed = parseTaskLine(row.markdown)
+  const tasks: TaskItem[] = rows.map((row, i) => {
+    const parsed = parsedLines[i]
     const marker = parsed?.marker ?? " "
     const resolved = headingRes.pathByParentId.get(row.parent_id)
     const childOrder = orderRes.get(row.root_id)?.get(row.id)
@@ -110,9 +113,9 @@ export async function collectTasks(sel: ScopeSelection, limit: number): Promise<
     const parentTaskId = headingRes.parentBlockIdByListId.get(row.parent_id) ?? null
     return {
       id: row.id,
-      // 展示/搜索用任务自身文本：含嵌套子项的父任务 blocks.content 会拼接子项文本
-      // 且带标记遗留的前导空格，故取 markdown 首行标记后的文本，解析失败回退 content
-      content: (parsed?.text ?? row.content ?? "").trim(),
+      // 仅投影任务首行并展开块引锚文本，展示、搜索与历史记录使用相同文本。
+      content: contents[i].text,
+      blockRefRanges: contents[i].referenceRanges,
       marker,
       done: isTaskDone(marker),
       status: resolveTaskStatus(marker),

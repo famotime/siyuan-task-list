@@ -1376,6 +1376,12 @@
   min-width: 0;
   word-break: break-word;
 
+  .tl-block-ref {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
   .tl-highlight,
   mark {
     background-color: var(--b3-theme-primary-lightest);

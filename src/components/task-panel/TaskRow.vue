@@ -100,7 +100,7 @@ const checkBtnRef = ref<HTMLElement | null>(null)
 const menuOpen = ref(false)
 
 const renderedContent = computed(() =>
-  highlightText(props.task.content || "…", props.keyword),
+  highlightText(props.task.content || "…", props.keyword, "tl-highlight", props.task.blockRefRanges),
 )
 
 const displayMarker = computed(() => {

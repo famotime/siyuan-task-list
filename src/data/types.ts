@@ -2,6 +2,7 @@
  * 任务清单领域模型与视图模型。
  * 术语见仓库根目录 GLOSSARY.md。
  */
+import type { TextRange } from "@/utils/text"
 
 /** 任务项完成状态分类：待办( )、进行中(/)、完成(x)、放弃(-)、自定义(其它字符) */
 export type TaskStatus = "todo" | "in_progress" | "done" | "canceled" | "custom"
@@ -51,6 +52,8 @@ export interface TaskItem {
   id: string
   /** 纯文本内容（不含任务标记） */
   content: string
+  /** 块引在 content 中的显示文字范围，供任务行加下划线 */
+  blockRefRanges?: TextRange[]
   /** 任务标记字符：" " 未完成、"x" 已完成、"/" "-" "!" 等自定义标记 */
   marker: string
   done: boolean

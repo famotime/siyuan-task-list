@@ -23,11 +23,11 @@ export function decodeHtmlEntities(text: string): string {
     .replace(/&(?:amp|lt|gt|quot|apos|#39|nbsp);/g, (match) => NAMED_ENTITIES[match] ?? match)
     .replace(/&#([0-9]+);/g, (_, code) => {
       const num = Number.parseInt(code, 10)
-      return Number.isFinite(num) ? String.fromCodePoint(num) : _
+      return Number.isFinite(num) && num <= 0x10FFFF ? String.fromCodePoint(num) : _
     })
     .replace(/&#[xX]([0-9a-fA-F]+);/g, (_, hex) => {
       const num = Number.parseInt(hex, 16)
-      return Number.isFinite(num) ? String.fromCodePoint(num) : _
+      return Number.isFinite(num) && num <= 0x10FFFF ? String.fromCodePoint(num) : _
     })
 }
 
